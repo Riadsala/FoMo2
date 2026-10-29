@@ -102,8 +102,8 @@ compute_steps <- function(found) {
   # selection from the one before, for a dataframe (d$found) of trials
   found |>
     group_by(across(all_of(trial_grouping_cols(found)))) |>
-    mutate(x0 = lag(x),
-           y0 = lag(y),
+    mutate(x0 = dplyr::lag(x),
+           y0 = dplyr::lag(y),
            delta = sqrt((x - x0)^2 + (y - y0)^2),
            phi = atan2(y - y0, x - x0) %% (2 * pi)) |>
     filter(n > 1)

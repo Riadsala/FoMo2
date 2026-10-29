@@ -132,7 +132,7 @@ styled_summary_table <- function(table) {
   border_after <- setdiff(last_in_group, 0L)
 
   # first row of each parameter after the first
-  new_parameter <- which(table$parameter != lag(table$parameter))
+  new_parameter <- which(table$parameter != dplyr::lag(table$parameter))
 
   # parameter and numbers right-aligned, other text centred
   align <- if_else(map_lgl(table, is.numeric) | names(table) == "parameter", "r", "c")
@@ -817,7 +817,7 @@ format_compare <- function(out, columns = NULL, group = NULL) {
   if (!knitr::is_html_output()) return(knitr::kable(out))
 
   # first row of each group after the first
-  new_group <- if (!is.null(group) && group %in% names(out)) which(out[[group]] != lag(out[[group]])) else integer(0)
+  new_group <- if (!is.null(group) && group %in% names(out)) which(out[[group]] != dplyr::lag(out[[group]])) else integer(0)
   kableExtra::kbl(out) |>
     kableExtra::kable_styling(bootstrap_options = "condensed", full_width = FALSE, position = "center",
                               font_size = 12) |>

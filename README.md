@@ -103,6 +103,13 @@ acc  <- extract_post(pred, d$found, d$stim)$acc   # accuracy
 model weights). To use your own data, put it in the format described in
 `data/README.md` (one table of items, one of selections).
 
+*Note*: FoMo's functions call dplyr verbs such as `select()`, `mutate()`
+and `summarise()` without a package prefix, so a package attached after
+`set_up_FoMo.R` can replace them. Attach any other packages first, and
+call plyr and MASS with a prefix (`plyr::`, `MASS::`) rather than
+attaching them: MASS's `select()` makes FoMo's functions fail, and plyr's
+`summarise()` ignores `group_by()`, giving wrong results without an error.
+
 ## Datasets
 
 `kristjansson2014plos` (K2014), `hughes2024rsos` (H2024), `clarke2022qjep`

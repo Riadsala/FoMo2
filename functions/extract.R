@@ -24,10 +24,10 @@ extract_post <- function(fit, found, stim = NULL, accuracy_exclude = "first_and_
        vonmises = extract_vonmises(fit, vars, cond_labels),
        fourier  = extract_fourier(fit, vars, cond_labels),
        acc      = accuracy_by_draw(fit, found, vars, stim, accuracy_exclude),
-       u        = compact(random_effects),
+       u        = purrr::compact(random_effects),
        sigmas   = random_effects$sigmas) |>
     # drop the parts this model doesn't have
-    discard(\(x) is.null(x) || (is.list(x) && length(x) == 0))
+    purrr::discard(\(x) is.null(x) || (is.list(x) && length(x) == 0))
 }
 
 #' Extract posterior draws as tibble
@@ -52,7 +52,7 @@ sample_draw_ids <- function(draw_ids, n) {
   draw_ids[sample.int(length(draw_ids), min(n, length(draw_ids)))]
 }
 
-tidy_draws <- function(fit, vars, index_names) {
+tidy_fomo_draws <- function(fit, vars, index_names) {
   # draws of vars in long format, one row per draw and variable: dist
   # ("prior" for the pr_ variables), parameter (the name without pr_ or
   # indices) and one integer column per Stan index, named index_names
@@ -74,7 +74,7 @@ extract_spatial <- function(fit, vars, cond_labels) {
 
   vars_c <- vars[str_detect(vars, "rho_delta|rho_psi")]
 
-  tidy_draws(fit, vars_c, "condition") |>
+  tidy_fomo_draws(fit, vars_c, "condition") |>
     mutate(condition = label_condition(condition, cond_labels),
            dist = factor(dist)) |>
     select(.draw, value, condition, parameter, dist)
@@ -87,7 +87,7 @@ extract_cat <- function(fit, vars, cond_labels) {
   vars_c <- vars[str_detect(vars, "^(pr_)?b_v\\[")]
   if (length(vars_c) == 0) return(NULL)
 
-  tidy_draws(fit, vars_c, c("condition", "prev_class", "class")) |>
+  tidy_fomo_draws(fit, vars_c, c("condition", "prev_class", "class")) |>
     mutate(condition = label_condition(condition, cond_labels),
            prev_class = factor(prev_class),
            class = factor(class)) |>
@@ -103,7 +103,7 @@ extract_first_v <- function(fit, vars, cond_labels) {
   vars_i <- vars[str_detect(vars, "^first_v\\[")]
   if (length(vars_i) == 0) return(NULL)
 
-  tidy_draws(fit, vars_i, c("condition", "class")) |>
+  tidy_fomo_draws(fit, vars_i, c("condition", "class")) |>
     mutate(condition = label_condition(condition, cond_labels),
            class = factor(class)) |>
     select(.draw, parameter, condition, class, dist, value) |>
@@ -127,7 +127,7 @@ extract_vonmises <- function(fit, vars, cond_labels) {
   # one offset per condition (or a single shared value)
   offset <- get_dir_offset(fit, vars)
 
-  tidy_draws(fit, vars_t, c("condition", "k")) |>
+  tidy_fomo_draws(fit, vars_t, c("condition", "k")) |>
     mutate(offset = offset[pmin(condition, length(offset))],
            condition = label_condition(condition, cond_labels),
            k = factor(k, labels = direction_labels(max(k)))) |>
@@ -162,7 +162,7 @@ extract_fourier <- function(fit, vars, cond_labels) {
   harmonics <- get_fourier_harmonics(fit, vars)
   offset <- get_dir_offset(fit, vars)
 
-  tidy_draws(fit, vars_f, c("condition", "j")) |>
+  tidy_fomo_draws(fit, vars_f, c("condition", "j")) |>
     label_fourier_coef(harmonics) |>
     mutate(offset = offset[pmin(condition, length(offset))],
            condition = label_condition(condition, cond_labels)) |>
@@ -213,7 +213,7 @@ extract_u_spatial <- function(fit, vars, cond_labels) {
   if (length(vars_r) == 0) return(NULL)
 
   # one column per parameter: rho_delta, rho_psi
-  tidy_draws(fit, vars_r, c("condition", "person")) |>
+  tidy_fomo_draws(fit, vars_r, c("condition", "person")) |>
     mutate(parameter = str_replace(parameter, "^u_", "rho_"),
            condition = label_condition(condition, cond_labels),
            person = factor(person)) |>
@@ -231,7 +231,7 @@ extract_u_vonmises <- function(fit, vars, cond_labels) {
   # k indexes the von Mises components; phi is each component's preferred
   # direction in radians, as in the von Mises models' preferred directions:
   # 2*pi*(k - 1)/n_dircomps + dir_offset[condition]
-  tidy_draws(fit, vars_theta, c("condition", "k", "person")) |>
+  tidy_fomo_draws(fit, vars_theta, c("condition", "k", "person")) |>
     mutate(phi = 2 * pi * (k - 1) / max(k) + offset[pmin(condition, length(offset))],
            person = factor(person),
            condition = label_condition(condition, cond_labels)) |>
@@ -244,7 +244,7 @@ extract_u_fourier <- function(fit, vars, cond_labels) {
   vars_f <- vars[str_detect(vars, "^u_fourier_coef\\[")]
   if (length(vars_f) == 0) return(NULL)
 
-  tidy_draws(fit, vars_f, c("condition", "j", "person")) |>
+  tidy_fomo_draws(fit, vars_f, c("condition", "j", "person")) |>
     label_fourier_coef(get_fourier_harmonics(fit, vars)) |>
     mutate(person = factor(person),
            condition = label_condition(condition, cond_labels)) |>
@@ -258,7 +258,7 @@ extract_u_first_v <- function(fit, vars, cond_labels) {
   vars_i <- vars[str_detect(vars, "^u_first_v\\[")]
   if (length(vars_i) == 0) return(NULL)
 
-  tidy_draws(fit, vars_i, c("condition", "person", "class")) |>
+  tidy_fomo_draws(fit, vars_i, c("condition", "person", "class")) |>
     mutate(person = factor(person),
            class = factor(class),
            condition = label_condition(condition, cond_labels)) |>
@@ -270,7 +270,7 @@ extract_u_cat <- function(fit, vars, cond_labels) {
   vars_c <- vars[str_detect(vars, "^u_v\\[")]
   if (length(vars_c) == 0) return(NULL)
 
-  tidy_draws(fit, vars_c, c("condition", "person", "prev_class", "class")) |>
+  tidy_fomo_draws(fit, vars_c, c("condition", "person", "prev_class", "class")) |>
     mutate(person = factor(person),
            class = factor(class),
            prev_class = factor(prev_class),
