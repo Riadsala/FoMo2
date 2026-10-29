@@ -24,7 +24,21 @@ cd "$root"
 pages=$(find examples -name '*.html' -not -path '*_files/*' | sort)
 [ -n "$pages" ] || { echo "No rendered pages in examples/: render them first." >&2; exit 1; }
 
-# copy each page to the same path on the site, and list it in the index
+# section <level> <heading> <folder>: a heading (<h2>, <h3>, ...), then
+# each of the folder's pages, copied to the same path on the site and
+# listed under it
+section() {
+  echo "<h$1>$2</h$1>"
+  echo "<ul>"
+  for page in $(echo "$pages" | grep "^$3/"); do
+    mkdir -p "$site/$(dirname "$page")"
+    cp "$page" "$site/$page"
+    title=$(sed -n 's:.*<title>\(.*\)</title>.*:\1:p' "$page" | head -1)
+    echo "<li><a href=\"$page\">${title:-$page}</a> <code>${page#$3/}</code></li>"
+  done
+  echo "</ul>"
+}
+
 {
   cat <<'EOF'
 <!doctype html>
@@ -42,16 +56,13 @@ pages=$(find examples -name '*.html' -not -path '*_files/*' | sort)
 <h1>FoMo 2.0: worked examples</h1>
 <p>Rendered pages from the <a href="https://github.com/Riadsala/FoMo2">FoMo 2.0 repository</a>.
 Start with the single-level spatial example; <a href="https://github.com/Riadsala/FoMo2/blob/main/examples/README.md">examples/README.md</a> gives the reading order.</p>
-<ul>
 EOF
-  for page in $pages; do
-    mkdir -p "$site/$(dirname "$page")"
-    cp "$page" "$site/$page"
-    title=$(sed -n 's:.*<title>\(.*\)</title>.*:\1:p' "$page" | head -1)
-    echo "<li><a href=\"$page\">${title:-$page}</a> <code>${page#examples/}</code></li>"
-  done
+  echo "<h2>Simulation examples</h2>"
+  section 3 "Single-level models" examples/simulated/single_level
+  section 3 "Multi-level models" examples/simulated/multi_level
+  section 3 "Model comparison" examples/simulated/model_comparison
+  section 2 "Fitting FoMo to empirical datasets" examples/real_data
   cat <<'EOF'
-</ul>
 </body>
 </html>
 EOF
