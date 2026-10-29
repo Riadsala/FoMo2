@@ -1,0 +1,152 @@
+---
+title: "von Mises vs Fourier directional models"
+format:
+  html:
+    embed-resources: true
+    code-fold: false
+    fig-height: 2.5
+    toc: true
+    number-sections: true
+    grid:
+      margin-width: 350px
+    reference-location: margin
+    fig-cap-location: margin
+execute:
+  warning: false
+  message: false
+---
+
+FoMo has two ways to model a preference for moving in some absolute
+direction (e.g. rightward, or along rows). Both add a term to each item's
+log-weight that depends only on the angle from the last selection to that
+item; they differ in which shapes that term can take.
+
+- **von Mises** (`directional_model = "von_mises"`, the model of Clarke &
+  Hughes, 2026): a weight $\theta$ for each of four fixed directions
+  (right, up, left, down), each a narrow von Mises bump. It can only
+  prefer those four directions, but each weight reads directly as "how
+  much this person likes moving that way".
+- **Fourier** (`directional_model = "fourier"`, the default): a Fourier
+  series in the angle, with a {cos, sin} coefficient pair per harmonic.
+  Harmonic 1 gives one preferred direction, harmonic 2 a preferred axis,
+  harmonic 4 a four-fold pattern. Fourier-124 (harmonics 1, 2 and 4) can
+  put a peak in any direction, but only smooth ones.
+
+We simulate one person twice, once from each model, with realistic
+values: each model's estimates for the feature condition of
+Kristjánsson et al. (2014). Then we fit both models to both datasets, see
+how well each recovers a shape it wasn't built for, and compare them.
+
+Code: `fourier_v_vonmises.R`.
+
+```{r}
+#| include: false
+knitr::read_chunk("fourier_v_vonmises.R")
+```
+
+```{r load}
+```
+
+## Simulate
+
+One condition, 100 trials of 40 items each (an 8 x 8 grid with 24 cells
+empty). The two datasets have almost the same distance and turning
+biases ($\rho_\delta$, $\rho_\psi$), so they differ mainly in their
+directional preference.
+
+```{r stimuli}
+```
+
+We now simulate a von Mises forager $\ldots$
+
+```{r simulate_vm}
+```
+
+$\ldots$ followed by a Fourier forager: 
+
+```{r simulate_f}
+```
+
+Each curve is the directional term's log-weight for an item at that
+angle from the last selection, centred on 0 (adding a constant to every
+item doesn't change which is chosen, so only the shape matters). The
+angle 0 is rightward and $\pi/2$ is up. Both prefer vertical moves:
+von Mises with narrow peaks at up and down on a flat floor, Fourier-124
+with broader peaks and dips where horizontal moves are avoided.
+
+```{r fig-true-curves}
+#| fig-cap: "The directional preference each dataset was simulated from."
+```
+
+## Fit both models to both datasets
+
+```{r fit}
+#| results: hide
+#| cache: true
+#| cache.extra: !expr rlang::hash(list(stim, found_vm, found_f, n_iter))
+```
+
+## Parameter recovery
+
+Each dataset fitted with the model that generated it: are the simulation
+values inside the 97% HPDIs? 
+
+```{r recovery-vm}
+#| results: asis
+```
+
+```{r recovery-f}
+#| results: asis
+```
+
+## Directional curves
+
+Neither model can match the other's shape exactly:
+
+- On the von Mises data, Fourier-124 finds both peaks but can't make them as narrow without adding dips beside them. 
+- On the Fourier-124 data, von Mises can only add narrow bumps at its four directions onto a flat floor, so it misses the width of the peaks and the dips.
+
+```{r fig-curves-vm}
+#| fig-cap: "Data simulated from von Mises: the true curve (dashed) and each model's fit, with 53% and 97% HPDI bands."
+```
+
+```{r fig-curves-f}
+#| fig-cap: "Data simulated from Fourier-124: the true curve (dashed) and each model's fit, with 53% and 97% HPDI bands."
+```
+
+## Model comparison
+
+`fomo_compare()` takes the models fitted to one dataset and returns one
+row per model:
+
+- `deterministic`: how often the model's most likely item is the one
+  selected; `gain_nn`: its gain over always picking the nearest item
+- `elpd_diff`, `se_diff`: how much worse each model predicts left-out
+  trials than the best (loo); within about 2 SE is a tie
+- `pct_high_k`: the share of trials whose loo estimate is unreliable
+  (Pareto $k$ above 0.7)
+- `stacking`: model weights
+- `robust`: whether the best model still wins without the high-$k$ trials
+
+The model the data came from should win. Differences that loo detects
+clearly can be small in accuracy, because most selections are decided by
+distance, not direction.
+
+```{r compare}
+#| warning: true
+```
+
+## Checking loo with K-fold
+
+loo approximates leaving each trial out without refitting. When that
+approximation is doubtful, `fomo_compare()` warns, and K-fold
+cross-validation does it for real: the trials are split into $K$ folds and
+each model is refitted $K$ times, each time leaving one fold out. Asking
+for it is one argument, `kfold_cv = 3`; each model is refitted with its
+own settings. Here, on the von Mises data, the two should tell the same
+story.
+
+```{r kfold}
+#| cache: true
+#| cache.extra: !expr rlang::hash(list(stim, found_vm, n_iter))
+```

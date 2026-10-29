@@ -1,0 +1,243 @@
+---
+title: "Single-level spatial model"
+format:
+  html:
+    embed-resources: true
+    code-fold: false
+    fig-height: 2.5
+    toc: true
+    number-sections: true
+    grid:
+      margin-width: 350px
+    reference-location: margin
+    fig-cap-location: margin
+execute:
+  warning: false
+  message: false
+---
+
+The spatial model predicts each selection from:
+
+  - distance to the last item (`rho_delta`), 
+  - direction relative to the last move (`rho_psi`),
+  - absolute direction (`fourier_coef`). 
+
+Here the absolute direction is a Fourier series
+(`directional_model = "fourier"`): for each harmonic (1, 2 and 4, "Fourier-124")
+a $\cos$ and a $\sin$ coefficient (`fourier_coef`), added to each item's
+log-weight. 
+
+We simulate one person with known parameters, fit the model, and check it recovers them.
+
+Code: `spatial.R`.
+
+```{r}
+#| include: false
+knitr::read_chunk("spatial.R")
+```
+
+```{r load}
+```
+
+## Simulate
+
+$K = 2$ conditions, 25 trials each, on a 9 x 9 grid with a quarter of cells
+empty. 
+
+- `v_type` lets us design stimuli where the items belong to classes (`"cat"`). As we are demonstrating the simplest foraging model that only uses the spatial elements, we set this to `none`.
+
+```{r stimuli}
+```
+
+The model uses the following parameters, one value of each per condition.
+Each adds to an item's log-weight for the next selection:
+
+- $\rho_{\delta}$ (`rho_delta`): distance. An item's log-weight falls by
+  $\rho_{\delta}\,\delta$, where $\delta$ is its distance from the last
+  selected item, so larger values mean a stronger preference for nearby
+  items ($\rho_{\delta} \ge 0$).
+- $\rho_{\psi}$ (`rho_psi`): relative direction. The log-weight falls by
+  $\rho_{\psi}\,\psi$, where $\psi$ is the change of heading from the last
+  move, from 0 (straight on) to 1 (a U-turn). Positive values favour
+  carrying on in the same direction; negative values favour turning back.
+- $a_h, b_h$ (`fourier_coef`): absolute direction. The log-weight changes
+  by $\sum_h a_h \cos(h\phi) + b_h \sin(h\phi)$, where $\phi$ is the
+  direction from the last selected item to the item, for harmonics
+  $h = 1, 2, 4$. They're stored as $(a_1, b_1, a_2, b_2, a_4, b_4)$
+    * $h = 1$ gives one preferred direction.
+    * $h = 2$ an axis (e.g. left-right over up-down).
+    * $h = 4$ the grid's four directions.
+
+The first selection of a trial has no previous item, so none of these
+apply to it.
+
+```{r simulate_params}
+```
+
+The conditions differ in every parameter. Their directional preferences
+are quite different:
+
+- Condition *one* moves mostly along the four cardinal
+directions: $a_4 = 0.8$ makes a step right, up, left or down about
+$e^{1.6} \approx 5$ times as likely as a diagonal one. 
+- Condition *two* has
+a strong rightward bias: $a_1 = 1.5$ makes a step right about
+$e^{3} \approx 20$ times as likely as a step left. 
+
+Both are large but plausible under the default priors, which centre every coefficient on 0
+with SD 0.35 for $h = 4$ and 0.8 for $h = 1$: about 2 prior SDs each.
+
+We treat our simulation parameters as highly-informative priors. Before running our model, we need to prepare the data:
+
+```{r sim_stan_list}
+```
+
+We then pass this list to the *simulate* version of our Stan model:
+
+```{r simulate}
+```
+
+The simulation selects every item, but real foragers often stop early, so
+`truncate_trials()` drops a few selections from the end of each trial: a
+Poisson(2) number of them, always keeping at least 10. The dropped items
+stay on the display, unselected. This allows us to test that our model handles inexhaustive data without problems.
+
+```{r truncate}
+```
+
+By default `plot_trial()` plots one randomly selected trial per condition.
+
+```{r fig-trial}
+#| fig-cap: "One simulated trial from each condition: items and selection order."
+```
+
+We can check our simulated data with some summary plots. Distances should get larger
+through a trial, as fewer items remain. The direction densities show the
+simulated preferences filtered through the grid: from any item, the
+nearest neighbours lie in only eight directions (four along the grid,
+four diagonal), so the peaks reflect both the model and the layout.
+
+```{r fig-steps}
+#| fig-cap: "Distance and direction of moves in the simulated data."
+```
+
+We can compute a number of trial stats for comparing against the fitted model's posterior predictions. The number of path self-intersections isn't computed by default, as it is slow (about 0.06 s per trial, which adds up over posterior draws), so we ask for it here with `which_stats`.
+
+```{r trial-stats}
+```
+
+## Fit
+
+We now fit the single-level (spatial) version of FoMo to our simulated data. Four chains of `r n_iter` warmup and `r n_iter` sampling iterations.
+
+*Note*: `save_selections = FALSE` by default, because storing a prediction
+for every selection and draw is too big to read back into R on large
+datasets. For per-selection accuracy we set it to `TRUE` here; on large
+datasets, use `predict_fomo()` on a subset of draws instead.
+
+```{r fit_prep}
+#| results: hide
+```
+
+```{r fit}
+#| cache: true
+#| cache.extra: !expr rlang::hash(list(sl, n_iter))
+#| results: hide
+```
+
+## Diagnostics
+
+Posterior medians and 97% HPDIs, the values the data were simulated from
+(`true`, and whether each is `inside` its HPDI), and convergence (R-hat,
+ESS). About one in 33 simulation values should fall outside its HPDI by
+chance. R-hat above 1.01, or a bulk or tail ESS in the low hundreds, means the chains
+haven't mixed well enough to trust the tails of the posterior. The
+summary's last line names the worst parameter (random effects included);
+the table colours R-hat and ESS green (good), orange (acceptable) or red
+(bad). With this few
+iterations some low ESS values are expected; a real analysis should use
+more (the real-data examples use 1000).
+
+```{r fit-summary}
+#| results: asis
+```
+
+Rank plots of the five worst-mixing parameters, judged by R-hat and ESS
+together. Each histogram shows where one chain's draws rank among all the
+draws: if the chains have mixed well, every chain's histogram is roughly
+flat and they overlap. A chain sitting above or below the others has
+spent too long in one part of the posterior.
+
+```{r fig-traces}
+#| fig-cap: "Rank plots of the five worst-mixing parameters, coloured green (good), orange (acceptable) or red (bad) by their R-hat and ESS."
+```
+
+`log_lik` is one value per trial, so loo leaves out a whole trial at a
+time. A Pareto k above 0.7 marks a trial the fit leans on heavily, whose
+loo estimate is unreliable. A few are common with this few trials; many
+would mean loo comparisons need checking with K-fold cross-validation.
+`check_high_pareto_k()` lists those trials, worst first, with the person
+each belongs to (`z`).
+
+```{r loo}
+```
+
+## Posterior
+
+### Posterior densities
+
+Where a posterior sits well inside its prior band, the data rather than
+the prior set the estimate. A posterior pressed against the edge of its
+band means the prior is doing some of the work.
+
+```{r fig-post}
+#| fig-height: 4
+#| fig-cap: "Posterior densities by condition. Grey bands: prior HPDIs; dashed lines: simulation values."
+```
+
+The same parameters, shown as what each does to an item's selection
+weight: the negative exponential in distance, the same in the turn from
+the previous step (rho_psi), and the directional curve.
+
+```{r fig-post-weights}
+#| fig-cap: "Relative selection weight against distance, turn angle and direction: 53% and 97% HPDIs; dashed: simulation values."
+```
+
+### Accuracy 
+
+- Deterministic accuracy: how often the item the model judges most likely
+is the one selected.
+- Probability of the chosen item: the probability the
+model gave the item that was selected, averaged over selections; it
+credits the model for being nearly right, not only for top picks. 
+- Chance (1 / items left) rises through a trial as fewer items remain. 
+- The nearest-neighbour baseline always picks the closest remaining
+item, so the gap above it is what the model adds to proximity alone. 
+
+*Note*: this is in-sample accuracy, which overestimates out-of-sample accuracy. 
+
+```{r fig-accuracy}
+#| fig-cap: "Accuracy of the model's predictions at each selection, with chance and nearest-neighbour baselines."
+```
+
+## Posterior predictive check
+
+The model doesn't predict when a trial stops,
+so each simulated trial keeps as many selections as the data have.
+
+```{r sim-posterior}
+#| cache: true
+#| cache.extra: !expr rlang::hash(list(sl, n_iter, n_post_draws))
+```
+
+```{r fig-sim-trial}
+#| fig-cap: "One trial per condition, simulated from the fitted model."
+```
+
+Finally, we compare per-trial foraging statistics between the training data and data simulated from the fitted posterior. As none of the trial statistics below are model parameters, reproducing them tests whether the fitted model captures aspects of the behaviour it was not fitted to directly.
+
+```{r fig-sim-stats}
+#| cache: TRUE
+#| cache.extra: !expr rlang::hash(list(found_post, trial_stats))
+#| fig-cap: "Trial statistics for the fitted data (x) and data simulated from the posterior (y). Points near the diagonal mean the model reproduces them."
+```

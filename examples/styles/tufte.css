@@ -1,0 +1,70 @@
+/* Tufte-style look for the dataset reports (after tufte-css,
+   https://edwardtufte.github.io/tufte-css/): ET Book type on an off-white
+   page, italic headings, captions and notes in the right margin (set in
+   each .qmd: cap-location and reference-location: margin). */
+
+@font-face {
+  font-family: "et-book";
+  src: url("https://cdn.jsdelivr.net/gh/edwardtufte/tufte-css@gh-pages/et-book/et-book-roman-line-figures/et-book-roman-line-figures.woff") format("woff");
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: "et-book";
+  src: url("https://cdn.jsdelivr.net/gh/edwardtufte/tufte-css@gh-pages/et-book/et-book-display-italic-old-style-figures/et-book-display-italic-old-style-figures.woff") format("woff");
+  font-weight: normal;
+  font-style: italic;
+}
+@font-face {
+  font-family: "et-book";
+  src: url("https://cdn.jsdelivr.net/gh/edwardtufte/tufte-css@gh-pages/et-book/et-book-bold-line-figures/et-book-bold-line-figures.woff") format("woff");
+  font-weight: bold;
+  font-style: normal;
+}
+
+:root {
+  --tufte-bg: #fffff8;
+  --tufte-fg: #111111;
+  --tufte-muted: #555555;
+}
+
+body {
+  background-color: var(--tufte-bg);
+  color: var(--tufte-fg);
+  font-family: "et-book", Palatino, "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-size: 1.15rem;
+  line-height: 1.55;
+}
+
+h1, h2, h3, h4, .title {
+  font-weight: 400;
+  font-style: italic;
+  font-family: inherit;
+}
+h1.title { font-size: 2.6rem; font-style: normal; }
+h2 { font-size: 1.8rem; margin-top: 2.5rem; border-bottom: none; }
+h3 { font-size: 1.4rem; }
+
+a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+/* captions, margin notes and the table of contents, smaller and muted */
+.figure-caption, figcaption, .margin-caption, caption, .column-margin,
+.aside, #TOC, #quarto-margin-sidebar, .sidebar {
+  font-size: 0.95rem;
+  line-height: 1.35;
+  color: var(--tufte-muted);
+}
+caption { caption-side: top; text-align: left; }
+
+/* tables: light rules only */
+table { font-size: 0.85rem; font-variant-numeric: tabular-nums; background: transparent; }
+.table > :not(caption) > * > * { background-color: transparent; }
+thead th { border-bottom: 1px solid #333 !important; font-weight: normal; font-style: italic; }
+td, th { border-color: #ddd; }
+
+/* code: kept small, as it is folded away by default */
+pre, code { font-size: 0.8rem; }
+pre.sourceCode, div.sourceCode { background-color: #f5f5ec; border: none; }
+details.code-fold summary { color: var(--tufte-muted); font-size: 0.9rem; }
+
+img { background-color: var(--tufte-bg); }

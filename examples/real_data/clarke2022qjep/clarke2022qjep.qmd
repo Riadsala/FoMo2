@@ -1,0 +1,179 @@
+---
+title: "Clarke et al. (2022): the fitted model"
+format:
+  html:
+    embed-resources: true
+    code-fold: false
+    fig-height: 2.5
+    toc: true
+    number-sections: true
+    grid:
+      margin-width: 350px
+    reference-location: margin
+    fig-cap-location: margin
+execute:
+  warning: false
+  message: false
+---
+
+In the foraging task of Clarke, Irons, James, Leber & Hunt (2022,
+*QJEP*), 58 people selected all 40 targets on each trial, 20 of each of
+two types, in a **feature** and a **conjunction** condition. As in other
+foraging studies, people tend to collect one target type in long runs in
+conjunction foraging, and switch more freely in feature foraging. The
+paper's abstract says 64 people were tested; the data have 58 (exclusions,
+still to be confirmed). With 87,760 selections it is the
+largest dataset here.
+
+This page shows how to work with a fitted model: checking convergence,
+reading the posterior, accuracy and posterior predictive checks.
+The model is the default one: multi-level, Fourier-124 directions, the
+default priors, 4 chains of 1000 warmup and 1000 sampling iterations.
+
+*Note*: this page doesn't fit anything. It reads a saved fit
+(`clarke2022qjep_fourier124.rds`) from `fits/` in this folder.
+It isn't in the repository: to make it, run `fit_clarke2022qjep.R` in this
+folder (about 4 hours on a laptop), which saves it there. See
+`examples/real_data/README.md`.
+
+Code: `clarke2022qjep.R`.
+
+```{r}
+#| include: false
+knitr::read_chunk("clarke2022qjep.R")
+```
+
+```{r load}
+```
+
+## The data
+
+```{r data}
+```
+
+One random trial from each condition. Items are coloured by target type;
+the line is the order the targets were selected in.
+
+```{r fig-trial}
+#| fig-cap: "One trial per condition: items and selection order."
+```
+
+How long people kept selecting the same target type before switching
+(runs): the main difference between the conditions.
+
+```{r fig-runs}
+#| fig-cap: "Run lengths by condition."
+```
+
+Per-trial statistics, used below to check the fitted model against the
+data.
+
+```{r trial-stats}
+```
+
+## The fit
+
+```{r read-fit}
+```
+
+Population-level estimates (medians and 97% HPDIs) and convergence.
+R-hat and ESS are coloured green (good), orange (acceptable) or red
+(bad). At 1000 iterations this fit's largest R-hat is 1.02 and its smallest
+bulk ESS about 200: fine for a walkthrough, but a published analysis
+should use 2000.
+
+```{r fit-summary}
+#| results: asis
+```
+
+Rank plots of the five worst-mixing parameters. If the chains have mixed
+well, each chain's histogram is roughly flat and they overlap.
+
+```{r fig-traces}
+#| fig-height: 2.2
+#| fig-cap: "Rank plots of the five worst-mixing parameters, coloured by their R-hat and ESS."
+```
+
+## Posterior
+
+`extract_post()` turns the fit's draws into tidy tables (one per group of
+parameters), which the `plot_post_*()` functions take.
+
+```{r extract}
+#| cache: true
+#| cache.extra: !expr list(file.mtime("fits/clarke2022qjep_fourier124.rds"), rlang::hash(d))
+```
+
+```{r fig-post}
+#| fig-height: 7
+#| fig-cap: "Posterior densities by condition: class transitions, distance and relative direction, and the Fourier coefficients. Grey bands: the priors' HPDIs."
+```
+
+The same spatial parameters, shown as what each does to an item's
+selection weight:
+
+```{r fig-post-weights}
+#| fig-cap: "Relative selection weight against distance, turn and absolute direction: 53% and 97% HPDIs."
+```
+
+Each person's distance and relative-direction estimates, over the
+population's:
+
+```{r fig-person}
+#| fig-height: 8
+#| fig-cap: "Per-person estimates (intervals) over the population-level HPDIs (grey bands)."
+```
+
+And each person's class-transition probabilities: how likely they are to
+select each target type next, given the type they just selected. With two
+types each row of the matrix sums to one, so the columns come in mirrored
+pairs.
+
+```{r fig-person-cat}
+#| fig-height: 8
+#| fig-cap: "Per-person class-transition probabilities (previous type -> next type) over the population-level HPDIs (grey bands)."
+```
+
+## Accuracy
+
+The fit doesn't store a prediction for every selection
+(`save_selections = FALSE`, the default), so `predict_fomo()` makes them
+from 200 posterior draws. Deterministic accuracy is how often the item the
+model judges most likely is the one selected; the probability of the
+chosen item credits being nearly right too. Chance (dotted) is
+1 / items left; the nearest-neighbour rule (dashed) always picks the
+closest item, so the gap above it is what the model adds to proximity
+alone. This is in-sample accuracy, which overestimates out-of-sample
+accuracy.
+
+```{r predict}
+#| cache: true
+#| cache.extra: !expr list(file.mtime("fits/clarke2022qjep_fourier124.rds"), rlang::hash(d))
+```
+
+```{r fig-accuracy}
+#| fig-cap: "Accuracy at each selection, with chance and nearest-neighbour baselines."
+```
+
+## Posterior predictive check
+
+Whole trials simulated from the fitted model (5 posterior draws: the
+dataset is large), compared with the data. The
+model doesn't predict when a trial stops, so each simulated trial keeps as
+many selections as the observed one.
+
+```{r sim-posterior}
+#| cache: true
+#| cache.extra: !expr list(file.mtime("fits/clarke2022qjep_fourier124.rds"), rlang::hash(d), n_post_draws)
+```
+
+```{r fig-sim-trial}
+#| fig-cap: "One trial per condition, simulated from the fitted model."
+```
+
+```{r fig-sim-stats}
+#| cache: true
+#| cache.extra: !expr rlang::hash(list(found_post, trial_stats))
+#| fig-height: 4
+#| fig-cap: "Trial statistics for the data (x) and simulated from the posterior (y). Points near the diagonal mean the model reproduces them."
+```

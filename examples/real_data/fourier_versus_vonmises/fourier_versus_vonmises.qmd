@@ -1,0 +1,106 @@
+---
+title: "Fourier against von Mises: every real dataset"
+format:
+  html:
+    embed-resources: true
+    code-fold: false
+    fig-height: 2.5
+    toc: true
+    number-sections: true
+    grid:
+      margin-width: 350px
+    reference-location: margin
+    fig-cap-location: margin
+execute:
+  warning: false
+  message: false
+---
+
+FoMo models the direction of each move with one of two directional
+models:
+
+- **von Mises** (Clarke, Hunt & Hughes, 2022a): a weight for each of a
+  few preferred directions, each a von Mises bump of fixed width.
+- **Fourier-124**: a smooth curve made of the first, second and fourth
+  harmonics (a {cos, sin} pair each), added to an item's log-weight. The
+  default.
+
+Both were fitted to every real dataset with everything else the same (the
+default priors and centring, 4 chains of 1000 warmup and 1000 sampling
+iterations), then compared with `fomo_compare()`.
+
+*Note*: this page doesn't fit anything. It reads each dataset's
+Fourier-124 fit (made by the dataset's own `fit_<dataset>.R`), and the von
+Mises fits and the comparison in `fits/` in this folder, which
+`fit_fourier_versus_vonmises.R` makes (about 14 hours on a laptop). See
+`examples/real_data/README.md`.
+
+Code: `fourier_versus_vonmises.R`.
+
+```{r}
+#| include: false
+knitr::read_chunk("fourier_versus_vonmises.R")
+```
+
+```{r load}
+```
+
+## The comparison
+
+One row per dataset and model. `deterministic`: how often the model's
+most likely item is the one selected (leaving out each trial's first
+selection and any forced last one); `nn`: the same for the
+nearest-neighbour rule, and `gain_nn` the model's gain over it. `elpd_diff`
+is the leave-one-trial-out (loo) difference from the better model, with
+its standard error; `pct_high_k` the percentage of trials whose Pareto k
+is above 0.7 (where loo is less reliable), and `robust` whether the
+difference holds without those trials.
+
+```{r table}
+```
+
+Fourier-124 is better on every dataset, by between 5 and 21 standard
+errors. The datasets differ a lot in size, so per trial:
+
+```{r fig-elpd}
+#| fig-cap: "The loo difference per trial between von Mises and Fourier-124 (below 0: von Mises is worse), with 2 standard errors."
+```
+
+The gain in accuracy is small (at most about 1.5 points): which item
+each model rates most likely mostly agrees, so the loo difference comes
+mainly from how much probability each gives the item that was selected.
+
+```{r fig-accuracy}
+#| fig-cap: "Accuracy of each model and of the nearest-neighbour rule, per dataset."
+```
+
+Stacking weights split the predictions between the models: the weights
+of the mixture of the two models' predictive distributions that best
+predicts held-out trials. They are not the probability that each model
+is right. Von Mises keeps 9-20% of the weight on every dataset, despite
+being thousands of elpd behind on some: a mixture gains from von Mises
+if it predicts some trials better than Fourier-124, even when it is worse
+overall. Which trials those are hasn't been checked yet, so don't read
+much into the weights.
+
+```{r fig-stacking}
+#| fig-cap: "Stacking weights of the two models, per dataset."
+```
+
+## The directional curves
+
+Why Fourier-124 fits better: the directional preferences each model
+finds, as log-weights against the absolute direction of the move.
+
+```{r curves}
+#| cache: true
+#| cache.extra: !expr file.mtime(c(map_chr(names(datasets), fourier_file), map_chr(names(datasets), vonmises_file)))
+```
+
+```{r fig-curves}
+#| fig-height: 9
+#| fig-cap: "Directional log-weight curves (centred), 53% and 97% HPDIs, for each dataset and condition."
+```
+
+*Note*: kristjansson2014plos is rotated by 180 degrees on import (an
+assumption), so read its absolute directions with care.

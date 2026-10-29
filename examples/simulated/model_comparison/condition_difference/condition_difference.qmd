@@ -1,0 +1,205 @@
+---
+title: "Do two conditions differ?"
+format:
+  html:
+    embed-resources: true
+    code-fold: false
+    fig-height: 2.5
+    toc: true
+    number-sections: true
+    grid:
+      margin-width: 350px
+    reference-location: margin
+    fig-cap-location: margin
+execute:
+  warning: false
+  message: false
+---
+
+A common question: does behaviour differ between two conditions? Here we demonstrate a workflow for answering this question with FoMo. For this example, we are interested in whether people's tendency to stick with the item class they just selected
+differs between two conditions? 
+
+A complication to testing this with a multi-level framework (i.e., data from several people) is that the question splits in two: do the conditions differ
+**on average**, and do **individuals** behave differently in the two
+conditions? This example builds three datasets, one for each answer, and
+fits each with three models, one for each answer:
+
+| Dataset | On average | Individually |
+|---|---|---|
+| **average** | people stick more in condition one | each person differs between conditions |
+| **individual** | no difference | each person differs between conditions |
+| **none** | no difference | each person the same in both |
+
+| Model | Population values | Each person's values |
+|---|---|---|
+| **condition** | one set per condition | differ between conditions |
+| **person x condition** | one set for both | differ between conditions |
+| **pooled** | one set for both | the same in both |
+
+The design is **within subjects**: every person does both conditions.
+(Between-subjects designs aren't supported well yet.)
+
+Code: `condition_difference.R`.
+
+```{r}
+#| include: false
+knitr::read_chunk("condition_difference.R")
+```
+
+```{r load}
+```
+
+## Simulate
+
+Ten people, each doing 10 trials in each of two conditions, on an 8 x 8
+grid with a quarter of cells empty and two item classes (the multi-level
+cat model). Each person's values vary around the population values: the
+simulation draws a between-person SD for each parameter (from an
+exponential with rate `sd_lambda`), then each person's values.
+
+- **average**: condition one is sticky on average (the next item is the
+  same class as the last with probability 0.8, for both classes);
+  condition two has no stick bias (0.5). Each person's values are drawn
+  separately in each condition.
+- **individual**: no stick bias on average in either condition, but each
+  person's values are again drawn separately in each condition, so every
+  person behaves a little differently in the two.
+- **none**: one set of values per person, used in both conditions.
+
+Distance, turning and direction have the same population values
+throughout.
+
+```{r stimuli}
+```
+
+Two relabellings: merging the conditions, and numbering each person x
+condition as its own "person". The **none** data are simulated with the
+conditions merged (one set of values per person), then given their
+conditions back; the models below use the same functions.
+
+```{r relabel}
+```
+
+```{r simulate}
+```
+
+Sticky behaviour shows in the runs of same-class selections: fewer and
+longer in condition one of the **average** data.
+
+```{r fig-runs}
+#| fig-cap: "Runs of same-class selections, per person and condition (mean per trial): number of runs and the longest run."
+```
+
+## Three models, by relabelling
+
+All three models are the standard multi-level cat model, fitted to
+relabelled data: the **condition** model to the data as they are; the
+**pooled** model with the two condition labels merged; and the **person x
+condition** model with the labels merged and each person x condition
+counted as a separate "person", so one set of population values with each
+person's values in the two conditions drawn independently. All three
+predict the same trials, so loo compares them directly. The relabelling
+functions are defined above, where the **none** data are simulated with
+the conditions merged.
+
+Fitting all nine models (three datasets x three models) takes about an
+hour, so it isn't done when this page is built. The code below is run
+once, by running `condition_difference.R` itself, and saves the fits in
+`condition_difference_fits.rds`; the page then loads that file. To refit,
+delete the file and run the script again.
+
+```{r fit}
+#| eval: false
+```
+
+```{r load-fits}
+```
+
+The person x condition model treats a person's two conditions as two
+unrelated people. Real people are more consistent than that (someone
+sticky in one condition is likely sticky in the other); a model with a
+stable part per person plus a condition-specific part would capture it,
+and is planned.
+
+## How big is the difference?
+
+The cat model's stickiness lives in its class-transition matrix, `b_v`:
+row $c$ holds the probabilities of each class being selected next, after
+an item of class $c$. Its diagonal is the **stay probabilities**: the
+chance of selecting the same class again after class 1, and after class
+2. The estimates below come from the **condition** model, the only one
+with separate values per condition.
+
+```{r stay}
+```
+
+### The population
+
+```{r fig-stay}
+#| fig-height: 3.5
+#| fig-cap: "Each condition's population stay probabilities (after class 1 and after class 2), from the condition model: medians with 53% and 97% HPDIs. Dashed lines: the simulated values."
+```
+
+```{r fig-difference}
+#| fig-height: 4.5
+#| fig-cap: "Posterior of condition two minus condition one (population values): the two stay probabilities and distance attraction, from the condition model. Medians with 53% and 97% HPDIs; dashed lines: the simulated differences."
+```
+
+In the **average** data both stay probabilities are about 0.3 lower in
+condition two, as simulated (0.8 against 0.5); distance attraction
+doesn't differ. In the other two every difference is near 0. So the
+population difference answers "does the average change?", but it can't
+tell the **individual** data from the **none** data: both have the same
+averages. (In the original model's terms, the simulated difference is a
+stick/switch rate $b_s$ of $\text{logit}(0.8) \approx 1.39$ against 0: see
+the single-level cat example.)
+
+### Each person
+
+```{r fig-person-stay}
+#| fig-height: 3
+#| fig-cap: "Each person's stay probability (averaged over the two classes) in each condition: posterior median and 97% HPDI against the value the simulation used. Dotted line: estimate = truth."
+```
+
+Each person's values are recovered, with estimates pulled slightly
+towards their condition's population value (shrinkage). In the **none**
+data each person's two values are the same; in the other two they differ.
+
+## Which kind of difference?
+
+```{r compare}
+#| cache: true
+#| cache.extra: !expr rlang::hash(list(stim, found, n_iter))
+```
+
+`elpd_diff` is each model's difference in loo from the best one, with its
+standard error.
+
+- **Do individuals change between conditions?** The pooled model, with
+  one set of values per person, loses by about 480 and 370 elpd in the
+  **average** and **individual** data, and is best in the **none** data,
+  where the condition model loses by about 17 (2.5 SE). Loo answers this
+  question clearly.
+- **Does the average change too?** Loo hardly does. In the **average**
+  data the person x condition model ties with the condition model (within
+  1 SE), although only the condition model has a population difference.
+  With 10 trials per person and condition, each person's values in each
+  condition are well estimated from their own data, so the person x
+  condition model fits the sticky condition-one values as sticky
+  individuals; and loo leaves out one trial at a time from people the
+  model already knows, so the population values barely affect its
+  predictions. (In the **individual** data the two are also close, the
+  condition model about 2 SE ahead, perhaps because its between-person
+  spread can differ between conditions, as it does in the simulation.) The
+  population difference above answers this question instead.
+
+So the two tools are complementary: loo for whether individuals change,
+the posterior of the population difference for whether the average does.
+With fewer trials per person, or leaving out whole people rather than
+trials (which needs predictions for new people, not yet supported), loo
+would depend more on the population values.
+
+Accuracy (`deterministic`: how often the model's most likely item is the
+one chosen) changes much less than loo. Which item is most likely rarely
+changes; how much probability the model gives the chosen item does, and
+loo scores that.

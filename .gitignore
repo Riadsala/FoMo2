@@ -1,0 +1,30 @@
+# compiled Stan models: cmdstanr compiles each .stan file to an executable
+# next to it (platform-specific), so only the .stan sources are tracked
+models/*/fit/*/*
+models/*/simulate/*/*
+!models/*/fit/*/*.stan
+!models/*/simulate/*/*.stan
+*.exe
+
+# fits and other R objects (fit_fomo() saves to scratch/ by default)
+*.rds
+/scratch/
+
+# real-data fits, made by each folder's fit script (see
+# examples/real_data/README.md)
+/examples/real_data/*/fits/
+
+# Quarto and knitr: rendered pages, resource folders and chunk caches. The
+# pages are published to GitHub Pages instead (examples/publish_pages.sh),
+# which keeps only their latest version
+/examples/**/*.html
+**/*_files/
+**/*_cache/
+*.rmarkdown
+
+# logs, R and OS cruft
+*.log
+*.pid
+.Rhistory
+Rplots.pdf
+.DS_Store

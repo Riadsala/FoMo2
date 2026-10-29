@@ -1,0 +1,207 @@
+---
+title: "Single-level categorical model"
+format:
+  html:
+    embed-resources: true
+    code-fold: false
+    fig-height: 2.5
+    toc: true
+    number-sections: true
+    grid:
+      margin-width: 350px
+    reference-location: margin
+    fig-cap-location: margin
+execute:
+  warning: false
+  message: false
+---
+
+The categorical (cat) model adds item classes to the spatial model: 
+
+  - distance to the last item (`rho_delta`), 
+  - direction relative to the last move (`rho_psi`),
+  - absolute direction (`fourier_coef`),
+  - a class-transition matrix (`b_v`) sets how likely the next item is to be the
+same class as the last ("sticking") or a different one. 
+
+We simulate one
+person with known parameters, fit the model, and check it recovers them.
+
+Code: `cat.R`.
+
+```{r}
+#| include: false
+knitr::read_chunk("cat.R")
+```
+
+```{r load}
+```
+
+## From stick/switch to a transition matrix
+
+The original model (Clarke, Hunt & Hughes, 2022; Clarke & Hughes, 2026)
+had two item-class parameters, for two classes A and B: a class weight
+$b_a$ (above 0 favours class A) and a stick/switch rate $b_s$ (above 0
+favours the class just selected). An item's weight is the product of
+$\text{logit}^{-1}(b_a)$ (or $1 - \text{logit}^{-1}(b_a)$ for class B)
+and $\text{logit}^{-1}(b_s)$ (or $1 - \text{logit}^{-1}(b_s)$ for a
+switch).
+
+Here the classes enter through one transition matrix, `b_v`: row $c$
+holds the probabilities of each class being selected next, after an item
+of class $c$ (per item, so the counts of each class still matter). With
+two classes the two parameterisations are the same model. Each row's
+log-odds of class A over class B are:
+
+$$
+\log\frac{b_v[A, A]}{b_v[A, B]} = b_a + b_s, \qquad
+\log\frac{b_v[B, A]}{b_v[B, B]} = b_a - b_s,
+$$
+
+so $b_a$ is the average of the two rows' log-odds and $b_s$ half their
+difference. However, two things differ:
+
+- With three or more classes the matrix is more general: $n(n-1)$ free probabilities against the papers' $n$ (class
+weights and one stick/switch rate). 
+- A trial's first selection, which has no previous item, is weighted by the matrix's stationary distribution
+(each class's long-run share) rather than by $b_a$.
+
+## Simulate
+
+Two conditions, 25 trials each, on an 8 $\times$ 8 grid with a quarter of cells
+empty and two item classes:
+
+- Condition *one* is sticky (repeat probabilities 0.85 and 0.75) and prefers the four cardinal directions;
+- Condition *two* is closer to random (0.6) and prefers moving right. 
+
+Each trial's first selection has no previous item, so it is weighted by class only,
+using the stationary distribution of the transition matrix (each class's
+long-run share): in condition *one* that favours class 1. 
+
+```{r stimuli}
+```
+
+```{r simulate}
+```
+
+```{r fig-trial}
+#| fig-cap: "One simulated trial: items (coloured by class) and selection order."
+```
+
+We should expect to see a difference in the run statistics between the two conditions:
+
+```{r fig-runs}
+#| fig-cap: "Runs of same-class selections per trial. Stickier behaviour gives fewer, longer runs."
+#| fig-width: 5
+#| fig-height: 3
+```
+
+Compute trial stats for comparing against the fitted model's posterior predictions:
+
+```{r trial-stats}
+```
+
+## Fit
+
+We now fit the single-level categorical version of FoMo to our simulated data. Four chains of `r n_iter` warmup and `r n_iter` sampling iterations.
+
+*Note*: `save_selections = FALSE` by default, because storing a prediction
+for every selection and draw is too big to read back into R on large
+datasets. For per-selection accuracy we set it to `TRUE` here; on large
+datasets, use `predict_fomo()` on a subset of draws instead.
+
+```{r fit_prep}
+#| results: hide
+```
+
+```{r fit}
+#| cache: true
+#| cache.extra: !expr rlang::hash(list(sl, n_iter))
+#| results: hide
+```
+
+## Diagnostics
+
+Posterior medians and 97% HPDIs, the values the data were simulated from
+(`true`, and whether each is `inside` its HPDI), and convergence (R-hat,
+ESS). About one in 33 simulation values should fall outside its HPDI by
+chance. R-hat above 1.01, or a bulk or tail ESS in the low hundreds, means the chains
+haven't mixed well enough to trust the tails of the posterior. The
+summary's last line names the worst parameter (random effects included);
+the table colours R-hat and ESS green (good), orange (acceptable) or red
+(bad). With this few
+iterations some low ESS values are expected; a real analysis should use
+more (the real-data examples use 1000).
+
+```{r fit-summary}
+#| results: asis
+```
+
+Rank plots of the five worst-mixing parameters, judged by R-hat and ESS
+together. Each histogram shows where one chain's draws rank among all the
+draws: if the chains have mixed well, every chain's histogram is roughly
+flat and they overlap. A chain sitting above or below the others has
+spent too long in one part of the posterior.
+
+```{r fig-traces}
+#| fig-cap: "Rank plots of the five worst-mixing parameters, coloured green (good), orange (acceptable) or red (bad) by their R-hat and ESS."
+```
+
+`log_lik` is one value per trial, so loo leaves out a whole trial at a
+time. A Pareto k above 0.7 marks a trial the fit leans on heavily, whose
+loo estimate is unreliable. A few are common with this few trials; many
+would mean loo comparisons need checking with K-fold cross-validation.
+`check_high_pareto_k()` lists those trials, worst first, with the person
+each belongs to (`z`).
+
+```{r loo}
+```
+
+## Posterior
+
+Where a posterior sits well inside its prior band, the data rather than
+the prior set the estimate. A posterior pressed against the edge of its
+band means the prior is doing some of the work.
+
+```{r fig-post}
+#| fig-height: 5
+#| fig-cap: "Posterior densities by condition. Grey bands: prior HPDIs; dashed lines: simulation values."
+```
+
+
+- Deterministic accuracy: how often the item the model judges most likely
+is the one selected.
+- Probability of the chosen item: the probability the
+model gave the item that was selected, averaged over selections; it
+credits the model for being nearly right, not only for top picks. 
+- Chance (1 / items left) rises through a trial as fewer items remain. 
+- The nearest-neighbour baseline always picks the closest remaining
+item, so the gap above it is what the model adds to proximity alone. 
+
+```{r fig-accuracy}
+#| fig-cap: "Accuracy of the model's predictions at each selection, with chance and nearest-neighbour baselines."
+```
+
+## Posterior predictive check
+
+None of the trial statistics below is a model parameter, so reproducing
+them tests whether the fitted model captures aspects of the behaviour it
+was not fitted to directly. The model doesn't predict when a trial stops,
+so each simulated trial keeps as many selections as the data have.
+
+```{r sim-posterior}
+#| cache: true
+#| cache.extra: !expr rlang::hash(list(stim, found, n_iter, n_post_draws))
+```
+
+```{r fig-sim-trial}
+#| fig-cap: "Trials simulated from the fitted model."
+```
+
+```{r fig-sim-feature}
+#| fig-cap: "Proportion of each class selected at each point in a trial: fitted data vs data simulated from the posterior."
+```
+
+```{r fig-sim-stats}
+#| fig-cap: "Trial statistics for the fitted data (x) and data simulated from the posterior (y). Points near the diagonal mean the model reproduces them."
+```

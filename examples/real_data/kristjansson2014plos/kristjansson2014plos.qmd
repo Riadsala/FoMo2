@@ -1,0 +1,223 @@
+---
+title: "Kristjánsson et al. (2014): the fitted model"
+format:
+  html:
+    embed-resources: true
+    code-fold: false
+    fig-height: 2.5
+    toc: true
+    number-sections: true
+    grid:
+      margin-width: 350px
+    reference-location: margin
+    fig-cap-location: margin
+execute:
+  warning: false
+  message: false
+---
+
+In Kristjánsson, Jóhannesson & Thornton (2014, *PLoS ONE*), people
+foraged for two types of target on a touch screen, in two conditions:
+**feature** foraging, where targets differ from distractors in colour
+alone, and **conjunction** foraging, where they differ in a combination of
+colour and shape. A well-known result is that in conjunction foraging
+people tend to collect one target type before switching to the other
+(long runs), but switch freely in feature foraging.
+
+This page shows how to work with a fitted model: checking convergence,
+reading the posterior, accuracy and posterior predictive checks. It ends with a model comparison: the full transition matrix against a symmetric one.
+The model is the default one: multi-level, Fourier-124 directions, the
+default priors, 4 chains of 1000 warmup and 1000 sampling iterations.
+
+*Note*: this page doesn't fit anything. It reads saved fits
+(`kristjansson2014_fourier124.rds` and `kristjansson2014_fourier124_symmetric.rds`) from `fits/` in this folder.
+They aren't in the repository: to make them, run `fit_kristjansson2014plos.R` in this
+folder (about 2.5 hours on a laptop), which saves them there. See
+`examples/real_data/README.md`.
+
+*Note*: the importer rotates this dataset by 180 degrees, so that first
+selections start top-left as in the other datasets. That orientation is an
+assumption, so read the absolute-direction results with care.
+
+Code: `kristjansson2014plos.R`.
+
+```{r}
+#| include: false
+knitr::read_chunk("kristjansson2014plos.R")
+```
+
+```{r load}
+```
+
+## The data
+
+```{r data}
+```
+
+One random trial from each condition. Items are coloured by target type;
+the line is the order the targets were selected in.
+
+```{r fig-trial}
+#| fig-cap: "One trial per condition: items and selection order."
+```
+
+How long people kept selecting the same target type before switching
+(runs): the main difference between the conditions.
+
+```{r fig-runs}
+#| fig-cap: "Run lengths by condition."
+```
+
+Per-trial statistics, used below to check the fitted model against the
+data.
+
+```{r trial-stats}
+```
+
+## The fit
+
+```{r read-fit}
+```
+
+Population-level estimates (medians and 97% HPDIs) and convergence.
+R-hat and ESS are coloured green (good), orange (acceptable) or red
+(bad). At 1000 iterations this fit's smallest bulk ESS is about 380:
+fine for medians and intervals, but a published analysis might use 2000.
+
+```{r fit-summary}
+#| results: asis
+```
+
+Rank plots of the five worst-mixing parameters. If the chains have mixed
+well, each chain's histogram is roughly flat and they overlap.
+
+```{r fig-traces}
+#| fig-height: 2.2
+#| fig-cap: "Rank plots of the five worst-mixing parameters, coloured by their R-hat and ESS."
+```
+
+## Posterior
+
+`extract_post()` turns the fit's draws into tidy tables (one per group of
+parameters), which the `plot_post_*()` functions take.
+
+```{r extract}
+#| cache: true
+#| cache.extra: !expr list(file.mtime("fits/kristjansson2014_fourier124.rds"), rlang::hash(d))
+```
+
+```{r fig-post}
+#| fig-height: 7
+#| fig-cap: "Posterior densities by condition: class transitions, distance and relative direction, and the Fourier coefficients. Grey bands: the priors' HPDIs."
+```
+
+The same spatial parameters, shown as what each does to an item's
+selection weight:
+
+```{r fig-post-weights}
+#| fig-cap: "Relative selection weight against distance, turn and absolute direction: 53% and 97% HPDIs."
+```
+
+Each person's distance and relative-direction estimates, over the
+population's:
+
+```{r fig-person}
+#| fig-height: 4
+#| fig-cap: "Per-person estimates (intervals) over the population-level HPDIs (grey bands)."
+```
+
+And each person's class-transition probabilities: how likely they are to
+select each target type next, given the type they just selected. With two
+types each row of the matrix sums to one, so the columns come in mirrored
+pairs.
+
+```{r fig-person-cat}
+#| fig-height: 5
+#| fig-cap: "Per-person class-transition probabilities (previous type -> next type) over the population-level HPDIs (grey bands)."
+```
+
+## Accuracy
+
+The fit doesn't store a prediction for every selection
+(`save_selections = FALSE`, the default), so `predict_fomo()` makes them
+from 200 posterior draws. Deterministic accuracy is how often the item the
+model judges most likely is the one selected; the probability of the
+chosen item credits being nearly right too. Chance (dotted) is
+1 / items left; the nearest-neighbour rule (dashed) always picks the
+closest item, so the gap above it is what the model adds to proximity
+alone. This is in-sample accuracy, which overestimates out-of-sample
+accuracy.
+
+```{r predict}
+#| cache: true
+#| cache.extra: !expr list(file.mtime("fits/kristjansson2014_fourier124.rds"), rlang::hash(d))
+```
+
+```{r fig-accuracy}
+#| fig-cap: "Accuracy at each selection, with chance and nearest-neighbour baselines."
+```
+
+## Posterior predictive check
+
+Whole trials simulated from the fitted model, compared with the data. The
+model doesn't predict when a trial stops, so each simulated trial keeps as
+many selections as the observed one.
+
+```{r sim-posterior}
+#| cache: true
+#| cache.extra: !expr list(file.mtime("fits/kristjansson2014_fourier124.rds"), rlang::hash(d), n_post_draws)
+```
+
+```{r fig-sim-trial}
+#| fig-cap: "One trial per condition, simulated from the fitted model."
+```
+
+```{r fig-sim-stats}
+#| cache: true
+#| cache.extra: !expr rlang::hash(list(found_post, trial_stats))
+#| fig-height: 4
+#| fig-cap: "Trial statistics for the data (x) and simulated from the posterior (y). Points near the diagonal mean the model reproduces them."
+```
+
+## Model comparison: Symmetric transition matrix?
+
+The model above gives each condition a full 2 x 2 transition matrix: the
+probability of staying with a target type can differ between the two
+types, so one type can be preferred overall. A simpler model has one
+parameter per condition, the probability of staying with the type just
+selected, the same for both types (`prep_stan_list(symmetric_v = TRUE)`,
+`cat_sym.stan`): the matrix is symmetric and neither type is preferred.
+Everything else is the same, and so are the fit's settings. The
+comparison asks whether the asymmetry earns its extra parameters.
+
+```{r compare-load}
+```
+
+`fomo_compare()` tabulates accuracy (against the nearest-neighbour rule)
+and loo: `elpd_diff` is the difference from the best model, `se_diff` its
+standard error, and `robust` whether the difference survives dropping the
+trials with unreliable (high Pareto k) loo estimates.
+
+```{r compare}
+#| cache: true
+#| cache.extra: !expr list(file.mtime("fits/kristjansson2014_fourier124.rds"), file.mtime("fits/kristjansson2014_fourier124_symmetric.rds"), rlang::hash(d))
+```
+
+The full matrix is clearly better: about 241 elpd ahead (SE 44), with few
+trials of unreliable loo (about 1%), so the difference is robust. The plot
+below shows where it comes from. In **feature** search the symmetric model
+does as well, slightly better even (8 ± 5 elpd, within 2 SE): people stay
+with the type just selected about two-thirds of the time (stay log-odds
+0.72, a probability of about 0.67), and the two types are treated alike.
+All of the full model's advantage is in **conjunction** search (250 ± 43):
+there people almost always stay with the type just selected, but more so
+for one type than the other: in the full model the stay log-odds are
+about 4.9 for type 1 and 2.9 for type 2 (probabilities about 0.99 and
+0.95; in feature search 0.73 and 0.71, alike). Leaving one type is rarer
+than leaving the other, which one stay probability for both can't
+capture. So the asymmetry is needed,
+but only for conjunction foraging.
+
+```{r fig-compare}
+#| fig-cap: "Difference in loo between the full and symmetric models, summed over each condition's trials (point: sum; bars: 2 SE)."
+```

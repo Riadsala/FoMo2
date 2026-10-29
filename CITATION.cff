@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use FoMo, please cite the paper below (the preferred citation)."
+title: "FoMo 2.0: a Bayesian model of visual foraging"
+type: software
+license: MIT
+version: "2.0"
+authors:
+  - family-names: Clarke
+    given-names: Alasdair D. F.
+  - family-names: Hughes
+    given-names: Anna E.
+preferred-citation:
+  type: article
+  title: "FoMo: A unifying theory of visual foraging"
+  authors:
+    - family-names: Clarke
+      given-names: Alasdair D. F.
+    - family-names: Hughes
+      given-names: Anna E.
+  journal: "PLOS Computational Biology"
+  year: 2026
+  volume: 22
+  issue: 5
+  start: e1014266
+  doi: 10.1371/journal.pcbi.1014266

@@ -1,0 +1,238 @@
+---
+title: "Tagu et al. (2022): the fitted model"
+format:
+  html:
+    embed-resources: true
+    code-fold: false
+    fig-height: 2.5
+    toc: true
+    number-sections: true
+    grid:
+      margin-width: 350px
+    reference-location: margin
+    fig-cap-location: margin
+execute:
+  warning: false
+  message: false
+---
+
+In Tagu et al. (2022, *Cognition*), people used a mouse to forage for
+targets of three colours among distractors (54 items per trial) in two
+conditions: a **value** condition, where one target colour was worth more
+than the others, and a **control** condition without values. The question
+is how value, proximity and priming (the type just selected) shape which
+target is selected next.
+
+Here the three target colours are the item classes of a categorical
+(`cat`) model. In each block, class 1 is the block's designated colour
+(the high-value colour in the value condition, a nominal category in the
+control) and classes 2 and 3 are the other two colours, in colour-number
+order, which is arbitrary: so only class 1 is comparable across people and
+conditions.
+
+*Note*: this is the only dataset here with more than two item classes,
+so the only one that can test whether the full class-transition matrix
+(`b_v`) is needed. With two classes the matrix is the same model as the
+papers' class weight and stick/switch rate (`b_a`, `b_s`; see the
+simulated cat example); with three it has six free probabilities against
+their three (two class weights, one stick/switch rate).
+
+This page shows how to work with a fitted model: checking convergence,
+reading the posterior, accuracy and posterior predictive checks. It ends with a model comparison, three item classes against two.
+The model is the default one: multi-level, Fourier-124 directions, the
+default priors, 4 chains of 1000 warmup and 1000 sampling iterations.
+
+*Note*: this page doesn't fit anything. It reads saved fits
+(`tagu2022cog_fourier124.rds` and `tagu2022cog2items_fourier124.rds`) from `fits/` in this folder.
+They aren't in the repository: to make them, run `fit_tagu2022cog.R` in this
+folder (about 2.5 hours on a laptop), which saves them there. See
+`examples/real_data/README.md`.
+
+Code: `tagu2022cog.R`.
+
+```{r}
+#| include: false
+knitr::read_chunk("tagu2022cog.R")
+```
+
+```{r load}
+```
+
+## The data
+
+```{r data}
+```
+
+One random trial from each condition. Items are coloured by target type
+(the three colours); the line is the order the targets were selected in.
+
+```{r fig-trial}
+#| fig-cap: "One trial per condition: items and selection order."
+```
+
+How long people kept selecting the same target type before switching
+(runs).
+
+```{r fig-runs}
+#| fig-cap: "Run lengths by condition."
+```
+
+Per-trial statistics, used below to check the fitted model against the
+data.
+
+```{r trial-stats}
+```
+
+## The fit
+
+```{r read-fit}
+```
+
+Population-level estimates (medians and 97% HPDIs) and convergence.
+R-hat and ESS are coloured green (good), orange (acceptable) or red
+(bad). At 1000 iterations this fit's smallest bulk ESS is about 285:
+fine for medians and intervals, but a published analysis might use 2000.
+
+```{r fit-summary}
+#| results: asis
+```
+
+Rank plots of the five worst-mixing parameters. If the chains have mixed
+well, each chain's histogram is roughly flat and they overlap.
+
+```{r fig-traces}
+#| fig-height: 2.2
+#| fig-cap: "Rank plots of the five worst-mixing parameters, coloured by their R-hat and ESS."
+```
+
+## Posterior
+
+`extract_post()` turns the fit's draws into tidy tables (one per group of
+parameters), which the `plot_post_*()` functions take.
+
+```{r extract}
+#| cache: true
+#| cache.extra: !expr list(file.mtime("fits/tagu2022cog_fourier124.rds"), rlang::hash(d))
+```
+
+```{r fig-post}
+#| fig-height: 7
+#| fig-cap: "Posterior densities by condition: class transitions, distance and relative direction, and the Fourier coefficients. Grey bands: the priors' HPDIs."
+```
+
+The same spatial parameters, shown as what each does to an item's
+selection weight:
+
+```{r fig-post-weights}
+#| fig-cap: "Relative selection weight against distance, turn and absolute direction: 53% and 97% HPDIs."
+```
+
+Each person's distance and relative-direction estimates, over the
+population's:
+
+```{r fig-person}
+#| fig-height: 4
+#| fig-cap: "Per-person estimates (intervals) over the population-level HPDIs (grey bands)."
+```
+
+And each person's class-transition probabilities: how likely they are to
+select each target type next, given the type they just selected. With
+three types, all nine transitions are free (each row sums to one).
+
+```{r fig-person-cat}
+#| fig-height: 5
+#| fig-cap: "Per-person class-transition probabilities (previous type -> next type) over the population-level HPDIs (grey bands)."
+```
+
+## Accuracy
+
+The fit doesn't store a prediction for every selection
+(`save_selections = FALSE`, the default), so `predict_fomo()` makes them
+from 200 posterior draws. Deterministic accuracy is how often the item the
+model judges most likely is the one selected; the probability of the
+chosen item credits being nearly right too. Chance (dotted) is
+1 / items left; the nearest-neighbour rule (dashed) always picks the
+closest item, so the gap above it is what the model adds to proximity
+alone. This is in-sample accuracy, which overestimates out-of-sample
+accuracy.
+
+```{r predict}
+#| cache: true
+#| cache.extra: !expr list(file.mtime("fits/tagu2022cog_fourier124.rds"), rlang::hash(d))
+```
+
+```{r fig-accuracy}
+#| fig-cap: "Accuracy at each selection, with chance and nearest-neighbour baselines."
+```
+
+## Posterior predictive check
+
+Whole trials simulated from the fitted model, compared with the data. The
+model doesn't predict when a trial stops, so each simulated trial keeps as
+many selections as the observed one.
+
+```{r sim-posterior}
+#| cache: true
+#| cache.extra: !expr list(file.mtime("fits/tagu2022cog_fourier124.rds"), rlang::hash(d), n_post_draws)
+```
+
+```{r fig-sim-trial}
+#| fig-cap: "One trial per condition, simulated from the fitted model."
+```
+
+```{r fig-sim-stats}
+#| cache: true
+#| cache.extra: !expr rlang::hash(list(found_post, trial_stats))
+#| fig-height: 4
+#| fig-cap: "Trial statistics for the data (x) and simulated from the posterior (y). Points near the diagonal mean the model reproduces them."
+```
+
+## Model comparison: three item classes or two?
+
+The fit above gives each target colour its own class, so the class
+transitions are a 3 x 3 matrix. The simpler alternative merges the two
+non-designated colours into one class (`tagu2022cog2items`: high-value
+against the rest), leaving a 2 x 2 matrix. The selections are the same,
+only the class labels differ, so the models' leave-one-out predictions of
+each trial can be compared directly (the chunk checks that the two
+datasets are identical apart from the class). The 2-class fit has the same
+settings and is made by `fit_tagu2022cog.R` too.
+
+```{r compare-load}
+```
+
+`fomo_compare()` tabulates accuracy (against the nearest-neighbour rule)
+and loo. `elpd_diff` is the difference from the best model, `se_diff` its
+standard error, and `robust` whether the difference survives dropping the
+trials with unreliable (high Pareto k) loo estimates.
+
+```{r compare}
+#| cache: true
+#| cache.extra: !expr list(file.mtime("fits/tagu2022cog_fourier124.rds"), file.mtime("fits/tagu2022cog2items_fourier124.rds"), rlang::hash(d))
+```
+
+Three classes are far better: about 1,680 elpd ahead (SE 118), in both
+conditions (below). Merging the two lower-value colours hides how people
+move between them: in the 3-class fit, after selecting a colour-2 target
+the next is more likely colour 2 than colour 3 (log-odds 1.1 in the value
+condition, 1.5 in the control), and after colour 3 more likely colour 3
+than colour 2 (1.4 in both). So people stick with the exact colour, not
+just with "not the high-value colour", and they do so in the control
+condition too, where no colour is worth more: this is priming by colour,
+not value. About 9% of the 3-class model's trials have unreliable loo
+estimates (high Pareto k), more than in the other datasets, but the
+difference survives without those trials (`robust`). Three classes also
+predict the next target better (accuracy 0.62 against 0.59).
+
+```{r fig-compare}
+#| fig-cap: "Difference in loo between the 3-class and 2-class models, summed over trials, by condition (point: sum; bars: 2 SE)."
+```
+
+For reference, the 2-class model's class transitions:
+
+```{r fig-compare-cat}
+#| cache: true
+#| cache.extra: !expr list(file.mtime("fits/tagu2022cog2items_fourier124.rds"), rlang::hash(d))
+#| fig-height: 3
+#| fig-cap: "Per-person class-transition probabilities in the 2-class model."
+```

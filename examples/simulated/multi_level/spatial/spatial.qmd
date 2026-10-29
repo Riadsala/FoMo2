@@ -1,0 +1,224 @@
+---
+title: "Multi-level spatial model"
+format:
+  html:
+    embed-resources: true
+    code-fold: false
+    fig-height: 2.5
+    toc: true
+    number-sections: true
+    grid:
+      margin-width: 350px
+    reference-location: margin
+    fig-cap-location: margin
+execute:
+  warning: false
+  message: false
+---
+
+The spatial model predicts each selection from:
+
+  - distance to the last item (`rho_delta`),
+  - direction relative to the last move (`rho_psi`),
+  - absolute direction (`fourier_coef`).
+
+The multi-level version, used whenever the data have more than one
+person, gives each person their own parameter values (`u_*`) around the
+condition values, with between-person SDs (`sigma_u_*`).
+
+We simulate six people with known parameters, fit the model, and check it
+recovers them.
+
+Code: `spatial.R`.
+
+```{r}
+#| include: false
+knitr::read_chunk("spatial.R")
+```
+
+```{r load}
+```
+
+## Simulate
+
+Six people, $K = 2$ conditions, 10 trials per person and condition, on a
+7 $\times$ 7 grid with a quarter of cells empty.
+
+```{r stimuli}
+```
+
+The conditions differ in every parameter:
+
+- Condition *one*: weaker distance attraction (0.75), turning back
+  ($-1$), and moves mostly along the four cardinal directions;
+- Condition *two*: stronger distance attraction (1.5), carrying on (1),
+  and a strong rightward bias.
+
+Each person's values vary around these condition values. The simulation
+draws each between-person SD from an exponential with rate `sd_lambda`
+(a larger rate means less spread between people), then each person's
+values.
+
+```{r simulate_params}
+```
+
+As in the single-level example, we prepare the data and pass it to the
+*simulate* version of our Stan model:
+
+```{r sim_stan_list}
+```
+
+```{r simulate}
+```
+
+The simulation selects every item, but real foragers often stop early, so
+`truncate_trials()` drops a few selections from the end of each trial: a
+Poisson(2) number of them, always keeping at least 10. The dropped items
+stay on the display, unselected. This allows us to test that our model
+handles inexhaustive data without problems.
+
+```{r truncate}
+```
+
+By default `plot_trial()` plots one randomly selected trial per condition.
+
+```{r fig-trial}
+#| fig-cap: "One simulated trial from each condition: items and selection order."
+```
+
+```{r fig-steps}
+#| fig-cap: "Distance and direction of moves in the simulated data."
+```
+
+We can compute a number of trial stats for comparing against the fitted
+model's posterior predictions. With several people they are averaged to
+one row per person and condition, as single trials are noisy.
+
+```{r trial-stats}
+```
+
+We also keep each person's simulated values, to check the per-person
+estimates against later:
+
+```{r groundtruth}
+```
+
+## Fit
+
+We now fit the multi-level spatial version of FoMo to our simulated data.
+Four chains of `r n_iter` warmup and `r n_iter` sampling iterations.
+
+*Note*: by default the per-person distance effects are centred
+(`centred_params`, see `prep_stan_list()`). With only 10 trials per
+person that sometimes gives divergent transitions (0 and 22 on two
+datasets simulated like this one, against none without centring), so here
+none are centred (`centred_params = "none"`). The multi-level cat page
+shows the same check for that model.
+
+```{r fit_prep}
+#| results: hide
+```
+
+```{r fit}
+#| cache: true
+#| cache.extra: !expr rlang::hash(list(sl, n_iter))
+#| results: hide
+```
+
+## Diagnostics
+
+Posterior medians and 97% HPDIs, the values the data were simulated from
+(`true`, and whether each is `inside` its HPDI), and convergence (R-hat,
+ESS), for the fixed effects and the between-person SDs (`sigma_u_*`).
+Each person's values (`u_*`) are summarised in one row per parameter.
+About one in 33 simulation values should fall outside its HPDI by chance;
+with six people the SDs are hard to pin down. R-hat above 1.01, or a bulk
+or tail ESS in the low hundreds, means the chains haven't mixed well
+enough to trust the tails of the posterior. The summary's last line names
+the worst parameter (random effects included); the table colours R-hat
+and ESS green (good), orange (acceptable) or red (bad).
+
+```{r fit-summary}
+#| results: asis
+```
+
+Rank plots of the five worst-mixing parameters, judged by R-hat and ESS
+together. Each histogram shows where one chain's draws rank among all the
+draws: if the chains have mixed well, every chain's histogram is roughly
+flat and they overlap.
+
+```{r fig-traces}
+#| fig-cap: "Rank plots of the five worst-mixing parameters, coloured green (good), orange (acceptable) or red (bad) by their R-hat and ESS."
+```
+
+`log_lik` is one value per trial, so loo leaves out a whole trial at a
+time. A Pareto k above 0.7 marks a trial the fit leans on heavily, whose
+loo estimate is unreliable. `check_high_pareto_k()` lists those trials,
+worst first, with the person each belongs to (`z`).
+
+```{r loo}
+```
+
+## Posterior
+
+### Posterior densities
+
+Where a posterior sits well inside its prior band, the data rather than
+the prior set the estimate. A posterior pressed against the edge of its
+band means the prior is doing some of the work.
+
+```{r fig-post}
+#| fig-height: 5
+#| fig-cap: "Posterior densities by condition. Grey bands: prior HPDIs; dashed lines: simulation values."
+```
+
+### Each person
+
+Per-person estimates are pulled towards the condition value (shrinkage),
+most for people whose own data say least. So a person's interval can
+miss an extreme simulation value even when the condition values are
+recovered.
+
+```{r fig-person-spatial}
+#| fig-height: 5
+#| fig-cap: "Each person's $\\rho_\\delta$ and $\\rho_\\psi$: posterior intervals, simulation values (squares) and condition-level HPDIs (shaded)."
+```
+
+### Accuracy
+
+- Deterministic accuracy: how often the item the model judges most likely
+is the one selected.
+- Probability of the chosen item: the probability the
+model gave the item that was selected, averaged over selections; it
+credits the model for being nearly right, not only for top picks.
+- Chance (1 / items left) rises through a trial as fewer items remain.
+- The nearest-neighbour baseline always picks the closest remaining
+item, so the gap above it is what the model adds to proximity alone.
+
+*Note*: this is in-sample accuracy, which overestimates out-of-sample accuracy.
+
+```{r fig-accuracy}
+#| fig-cap: "Accuracy of the model's predictions at each selection, with chance and nearest-neighbour baselines."
+```
+
+## Posterior predictive check
+
+The model doesn't predict when a trial stops,
+so each simulated trial keeps as many selections as the data have.
+
+```{r sim-posterior}
+#| cache: true
+#| cache.extra: !expr rlang::hash(list(sl, n_iter, n_post_draws))
+```
+
+```{r fig-sim-trial}
+#| fig-cap: "One trial per condition, simulated from the fitted model."
+```
+
+Finally, we compare the trial statistics between the training data and data simulated from the fitted posterior. As none of the trial statistics are model parameters, reproducing them tests whether the fitted model captures aspects of the behaviour it was not fitted to directly.
+
+```{r fig-sim-stats}
+#| cache: true
+#| cache.extra: !expr rlang::hash(list(found_post, trial_stats))
+#| fig-cap: "Trial statistics per person for the fitted data (x) and data simulated from the posterior (y). Points near the diagonal mean the model reproduces them."
+```

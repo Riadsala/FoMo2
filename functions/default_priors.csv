@@ -1,0 +1,53 @@
+# Default weakly-informative priors for prep_stan_list() (see
+# prep.R), used whenever it's called with no explicit `priors`
+# argument. Each value here is a single per-unit number, applied
+# uniformly across every condition (K), direction (n_dircomps) or item
+# class - prep_stan_list() does that replication itself, so
+# this file only holds the base value, not an expanded table. It is the
+# repo-wide fallback and should stay generic, not tuned to one dataset.
+# The aim: a suite of weakly-informative priors that work for future
+# datasets, built from previously published ones.
+#
+# cat_* rows only apply to models with item classes (see item_features in
+# prep_stan_list()). kappa is not a prior and isn't here - it's a plain
+# argument to prep_stan_list().
+#
+# Where the values come from: multi-level fits of kristjansson2014plos,
+# tagu2022cog, hughes2024rsos, clarke2022qjep and an unpublished dataset
+# (not included here), with von Mises and Fourier directional models.
+# Each prior is about as narrow as it can be while every dataset x
+# condition posterior still sits inside its 97% HPDI. The spatial and
+# Fourier priors hold on every dataset; the cat transition priors
+# (cat_b_v_sd, cat_sd_v_lambda) are exceeded by conjunction-search
+# stickiness; log_theta's low end is exceeded only by directions with ~0
+# weight (not identified).
+#   - rho_delta ~ normal(1.5, 0.75), truncated at 0
+#   - rho_psi ~ normal(-0.5, 1)
+#   - log_theta ~ normal(-1.5, 2): most directional weights are negative
+#   - b_v (each row's log-odds) ~ normal(0, cat_b_v_sd = 2); its mean is
+#     the log-odds implied by cat_b_v_pr, a matrix of equal values, so 0
+#   - fourier_h<k>_sd: prior SD of harmonic k's {cos, sin} coefficients
+#     (mean 0, so no preferred direction), 0.8 / 0.45 / 0.35 for h1/h2/h4
+#   - random-effect SDs, sigma ~ exponential(lambda): sd_delta_lambda 4,
+#     sd_psi_lambda 2, sd_log_theta_lambda 0.5, cat_sd_v_lambda 1,
+#     fourier_h<k>_sd_lambda 2 / 4 / 8 for h1/h2/h4
+
+parameter,value
+rho_delta_mu,1.5
+rho_delta_sd,0.75
+rho_psi_mu,-0.5
+rho_psi_sd,1
+log_theta_mu,-1.5
+log_theta_sd,2
+sd_delta_lambda,4
+sd_psi_lambda,2
+sd_log_theta_lambda,0.5
+fourier_h1_sd,0.8
+fourier_h2_sd,0.45
+fourier_h4_sd,0.35
+fourier_h1_sd_lambda,2
+fourier_h2_sd_lambda,4
+fourier_h4_sd_lambda,8
+cat_b_v_pr,2
+cat_b_v_sd,2
+cat_sd_v_lambda,1

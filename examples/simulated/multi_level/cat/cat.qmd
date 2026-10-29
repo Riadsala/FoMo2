@@ -1,0 +1,239 @@
+---
+title: "Multi-level categorical model"
+format:
+  html:
+    embed-resources: true
+    code-fold: false
+    fig-height: 2.5
+    toc: true
+    number-sections: true
+    grid:
+      margin-width: 350px
+    reference-location: margin
+    fig-cap-location: margin
+execute:
+  warning: false
+  message: false
+---
+
+The categorical (cat) model adds item classes to the spatial model:
+
+  - distance to the last item (`rho_delta`),
+  - direction relative to the last move (`rho_psi`),
+  - absolute direction (`fourier_coef`),
+  - a class-transition matrix (`b_v`) sets how likely the next item is to be the
+same class as the last ("sticking") or a different one.
+
+The multi-level version gives each person their own parameter values
+(`u_*`) around the condition values, with between-person SDs
+(`sigma_u_*`).
+
+We simulate six people with known parameters, fit the model, and check it
+recovers them.
+
+Code: `cat.R`.
+
+```{r}
+#| include: false
+knitr::read_chunk("cat.R")
+```
+
+```{r load}
+```
+
+## The transition matrix and the papers' parameters
+
+The single-level cat example shows how `b_v` relates to the papers' class
+weight $b_a$ and stick/switch rate $b_s$: with two classes they are the
+same model. The multi-level models differ even then:
+
+- each row's log-odds get their own per-person random effect,
+  independently;
+- on the papers' scale, that ties the between-person spreads of $b_a$ and
+  $b_s$ together.
+
+## Simulate
+
+Six people, $K = 2$ conditions, 10 trials per person and condition, on an
+8 $\times$ 8 grid with a quarter of cells empty and two item classes.
+The conditions differ in every parameter:
+
+- Condition *one* sticks with class 1 (rows 0.85/0.15 and 0.45/0.55:
+  $b_a \approx 0.77$, $b_s \approx 0.97$), has weaker distance attraction
+  (0.75), turns back ($-1$) and prefers the four cardinal directions;
+- Condition *two* sticks with class 2 (rows 0.5/0.5 and 0.2/0.8:
+  $b_a \approx -0.69$, $b_s \approx 0.69$), has stronger distance
+  attraction (1.5), carries on (1) and prefers moving right.
+
+Each trial's first selection has no previous item, so it is weighted by
+class only, using the stationary distribution of each person's transition
+matrix. Each person's values vary around the condition values: the
+simulation draws each between-person SD from an exponential with rate
+`sd_lambda` (a larger rate means less spread between people), then each
+person's values.
+
+```{r stimuli}
+```
+
+```{r simulate}
+```
+
+```{r fig-trial}
+#| fig-cap: "One simulated trial from each condition: items (coloured by class) and selection order."
+```
+
+We should expect to see a difference in the run statistics between the two conditions:
+
+```{r fig-runs}
+#| fig-cap: "Runs of same-class selections per trial. Stickier behaviour gives fewer, longer runs."
+#| fig-width: 5
+#| fig-height: 3
+```
+
+Compute trial stats for comparing against the fitted model's posterior
+predictions. With several people they are averaged to one row per person
+and condition, as single trials are noisy.
+
+```{r trial-stats}
+```
+
+We also keep each person's simulated values, to check the per-person
+estimates against later, and look at their transition probabilities:
+
+```{r groundtruth}
+```
+
+```{r fig-check-bv}
+#| fig-cap: "Simulated class-transition probabilities: spread across people (boxes) and condition values (points)."
+```
+
+## Fit
+
+We now fit the multi-level categorical version of FoMo to our simulated
+data. Four chains of `r n_iter` warmup and `r n_iter` sampling iterations.
+
+*Note*: by default some per-person effects are centred (`centred_params`,
+see `prep_stan_list()`): distance and the class transitions. With only a
+few trials per person that gives a funnel and many divergent transitions,
+so here none are centred (`centred_params = "none"`). We checked this on
+data simulated as on this page (six people, 10 trials per person and
+condition), with two seeds, each dataset fitted both ways (4 chains of 500
+warmup and 500 sampling iterations; recovery counts every simulation value,
+per-person ones included):
+
+| Seed | Centring | Divergent transitions | Largest R-hat | Smallest bulk ESS | Recovery | Time (min) |
+|---|---|---|---|---|---|---|
+| 65 | default | 29 | 1.014 | 206 | 236 of 240 | 18.5 |
+| 65 | none | 0 | 1.011 | 605 | 237 of 240 | 32.8 |
+| 101 | default | 101 | 1.030 | 113 | 235 of 240 | 10.8 |
+| 101 | none | 2 | 1.012 | 374 | 233 of 240 | 15.7 |
+
+With the default centring, the divergences and the worst R-hat and ESS all
+come from the between-person SDs of the class transitions (`sigma_u_v`).
+Without centring, there are none or a few, and every parameter mixes
+better. Centring suits effects that each person's data pin down well,
+which takes more data per person than this: on the real datasets (20-40
+trials per person) the default works well. Even without centring, a few
+divergent transitions can happen with this little data per person.
+
+```{r fit_prep}
+#| results: hide
+```
+
+```{r fit}
+#| cache: true
+#| cache.extra: !expr rlang::hash(list(sl, n_iter))
+#| results: hide
+```
+
+## Diagnostics
+
+Posterior medians and 97% HPDIs, the values the data were simulated from
+(`true`, and whether each is `inside` its HPDI), and convergence (R-hat,
+ESS), for the fixed effects and the between-person SDs (`sigma_u_*`).
+Each person's values (`u_*`) are summarised in one row per parameter.
+About one in 33 simulation values should fall outside its HPDI by chance;
+with six people the SDs are hard to pin down. R-hat above 1.01, or a bulk
+or tail ESS in the low hundreds, means the chains haven't mixed well
+enough to trust the tails of the posterior. The summary's last line names
+the worst parameter (random effects included); the table colours R-hat
+and ESS green (good), orange (acceptable) or red (bad).
+
+```{r fit-summary}
+#| results: asis
+```
+
+Rank plots of the five worst-mixing parameters, judged by R-hat and ESS
+together. Each histogram shows where one chain's draws rank among all the
+draws: if the chains have mixed well, every chain's histogram is roughly
+flat and they overlap.
+
+```{r fig-traces}
+#| fig-cap: "Rank plots of the five worst-mixing parameters, coloured green (good), orange (acceptable) or red (bad) by their R-hat and ESS."
+```
+
+`log_lik` is one value per trial, so loo leaves out a whole trial at a
+time. A Pareto k above 0.7 marks a trial the fit leans on heavily, whose
+loo estimate is unreliable. `check_high_pareto_k()` lists those trials,
+worst first, with the person each belongs to (`z`).
+
+```{r loo}
+```
+
+## Posterior
+
+Where a posterior sits well inside its prior band, the data rather than
+the prior set the estimate. A posterior pressed against the edge of its
+band means the prior is doing some of the work.
+
+```{r fig-post}
+#| fig-height: 5
+#| fig-cap: "Posterior densities by condition. Grey bands: prior HPDIs; dashed lines: simulation values."
+```
+
+Per-person estimates are pulled towards the condition value (shrinkage),
+most for people whose own data say least. So a person's interval can
+miss an extreme simulation value even when the condition values are
+recovered.
+
+```{r fig-person-spatial}
+#| fig-height: 5
+#| fig-cap: "Each person's $\\rho_\\delta$ and $\\rho_\\psi$: posterior intervals, simulation values (squares) and condition-level HPDIs (shaded)."
+```
+
+- Deterministic accuracy: how often the item the model judges most likely
+is the one selected.
+- Probability of the chosen item: the probability the
+model gave the item that was selected, averaged over selections; it
+credits the model for being nearly right, not only for top picks.
+- Chance (1 / items left) rises through a trial as fewer items remain.
+- The nearest-neighbour baseline always picks the closest remaining
+item, so the gap above it is what the model adds to proximity alone.
+
+```{r fig-accuracy}
+#| fig-cap: "Accuracy of the model's predictions at each selection, with chance and nearest-neighbour baselines."
+```
+
+## Posterior predictive check
+
+None of the trial statistics below is a model parameter, so reproducing
+them tests whether the fitted model captures aspects of the behaviour it
+was not fitted to directly. The model doesn't predict when a trial stops,
+so each simulated trial keeps as many selections as the data have.
+
+```{r sim-posterior}
+#| cache: true
+#| cache.extra: !expr rlang::hash(list(stim, found, n_iter, n_post_draws))
+```
+
+```{r fig-sim-trial}
+#| fig-cap: "Trials simulated from the fitted model."
+```
+
+```{r fig-sim-feature}
+#| fig-cap: "Proportion of each class selected at each point in a trial: fitted data vs data simulated from the posterior."
+```
+
+```{r fig-sim-stats}
+#| fig-cap: "Trial statistics per person for the fitted data (x) and data simulated from the posterior (y). Points near the diagonal mean the model reproduces them."
+```

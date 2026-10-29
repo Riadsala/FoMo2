@@ -1,0 +1,244 @@
+---
+title: "Hughes, Statham & Clarke (2024): the fitted model"
+format:
+  html:
+    embed-resources: true
+    code-fold: false
+    fig-height: 2.5
+    toc: true
+    number-sections: true
+    grid:
+      margin-width: 350px
+    reference-location: margin
+    fig-cap-location: margin
+execute:
+  warning: false
+  message: false
+---
+
+In Hughes, Statham & Clarke (2024, *Royal Society Open Science*), people
+foraged for two types of target in **feature** and **conjunction**
+search, and the experiment varied how scarce each target type was. Here
+the scarcity levels are pooled, as in the fit, so the two conditions are
+feature and conjunction foraging. As in other foraging studies, people
+tend to collect one target type in long runs in conjunction search, and
+switch more freely in feature search.
+
+This page shows how to work with a fitted model: checking convergence,
+reading the posterior, accuracy and posterior predictive checks. It ends with a model comparison: scarcity levels as separate conditions.
+The model is the default one: multi-level, Fourier-124 directions, the
+default priors, 4 chains of 1000 warmup and 1000 sampling iterations.
+
+*Note*: this page doesn't fit anything. It reads saved fits
+(`hughes2024rsos_fourier124.rds` and `hughes2024rsos_scarcity_fourier124.rds`) from `fits/` in this folder.
+They aren't in the repository: to make them, run `fit_hughes2024rsos.R` in this
+folder (about 3.5 hours on a laptop), which saves them there. See
+`examples/real_data/README.md`.
+
+Code: `hughes2024rsos.R`.
+
+```{r}
+#| include: false
+knitr::read_chunk("hughes2024rsos.R")
+```
+
+```{r load}
+```
+
+## The data
+
+```{r data}
+```
+
+One random trial from each condition. Items are coloured by target type;
+the line is the order the targets were selected in.
+
+```{r fig-trial}
+#| fig-cap: "One trial per condition: items and selection order."
+```
+
+How long people kept selecting the same target type before switching
+(runs): the main difference between the conditions.
+
+```{r fig-runs}
+#| fig-cap: "Run lengths by condition."
+```
+
+Per-trial statistics, used below to check the fitted model against the
+data.
+
+```{r trial-stats}
+```
+
+## The fit
+
+```{r read-fit}
+```
+
+Population-level estimates (medians and 97% HPDIs) and convergence.
+R-hat and ESS are coloured green (good), orange (acceptable) or red
+(bad). This fit mixed less well than most: its largest R-hat is about
+1.03 and its smallest bulk ESS about 185 at 1000 iterations. That's
+usable for medians and intervals, but a published analysis should rerun
+it with 2000 iterations.
+
+```{r fit-summary}
+#| results: asis
+```
+
+Rank plots of the five worst-mixing parameters. If the chains have mixed
+well, each chain's histogram is roughly flat and they overlap.
+
+```{r fig-traces}
+#| fig-height: 2.2
+#| fig-cap: "Rank plots of the five worst-mixing parameters, coloured by their R-hat and ESS."
+```
+
+## Posterior
+
+`extract_post()` turns the fit's draws into tidy tables (one per group of
+parameters), which the `plot_post_*()` functions take.
+
+```{r extract}
+#| cache: true
+#| cache.extra: !expr list(file.mtime("fits/hughes2024rsos_fourier124.rds"), rlang::hash(d))
+```
+
+```{r fig-post}
+#| fig-height: 7
+#| fig-cap: "Posterior densities by condition: class transitions, distance and relative direction, and the Fourier coefficients. Grey bands: the priors' HPDIs."
+```
+
+The same spatial parameters, shown as what each does to an item's
+selection weight:
+
+```{r fig-post-weights}
+#| fig-cap: "Relative selection weight against distance, turn and absolute direction: 53% and 97% HPDIs."
+```
+
+Each person's distance and relative-direction estimates, over the
+population's:
+
+```{r fig-person}
+#| fig-height: 4
+#| fig-cap: "Per-person estimates (intervals) over the population-level HPDIs (grey bands)."
+```
+
+And each person's class-transition probabilities: how likely they are to
+select each target type next, given the type they just selected. With two
+types each row of the matrix sums to one, so the columns come in mirrored
+pairs.
+
+```{r fig-person-cat}
+#| fig-height: 5
+#| fig-cap: "Per-person class-transition probabilities (previous type -> next type) over the population-level HPDIs (grey bands)."
+```
+
+## Accuracy
+
+The fit doesn't store a prediction for every selection
+(`save_selections = FALSE`, the default), so `predict_fomo()` makes them
+from 200 posterior draws. Deterministic accuracy is how often the item the
+model judges most likely is the one selected; the probability of the
+chosen item credits being nearly right too. Chance (dotted) is
+1 / items left; the nearest-neighbour rule (dashed) always picks the
+closest item, so the gap above it is what the model adds to proximity
+alone. This is in-sample accuracy, which overestimates out-of-sample
+accuracy.
+
+```{r predict}
+#| cache: true
+#| cache.extra: !expr list(file.mtime("fits/hughes2024rsos_fourier124.rds"), rlang::hash(d))
+```
+
+```{r fig-accuracy}
+#| fig-cap: "Accuracy at each selection, with chance and nearest-neighbour baselines."
+```
+
+## Posterior predictive check
+
+Whole trials simulated from the fitted model, compared with the data. The
+model doesn't predict when a trial stops, so each simulated trial keeps as
+many selections as the observed one.
+
+```{r sim-posterior}
+#| cache: true
+#| cache.extra: !expr list(file.mtime("fits/hughes2024rsos_fourier124.rds"), rlang::hash(d), n_post_draws)
+```
+
+```{r fig-sim-trial}
+#| fig-cap: "One trial per condition, simulated from the fitted model."
+```
+
+```{r fig-sim-stats}
+#| cache: true
+#| cache.extra: !expr rlang::hash(list(found_post, trial_stats))
+#| fig-height: 4
+#| fig-cap: "Trial statistics for the data (x) and simulated from the posterior (y). Points near the diagonal mean the model reproduces them."
+```
+
+## Model comparison: does scarcity matter?
+
+The fit above pools the three scarcity levels within each task: target
+type A scarce (5 A and 15 B targets per display), both equal (10 each),
+or B scarce. The paper asked whether people favour the **scarce** target
+type, and found no evidence that they do.
+
+The alternative model gives each task x scarcity combination its own
+condition ($K = 6$), so every parameter can differ with scarcity. The
+trials and selections are the same, so loo compares the two directly.
+
+```{r compare-load}
+```
+
+```{r compare}
+```
+
+The $K = 6$ model is far ahead on loo (525 $\pm$ 98 elpd), and every cell
+contributes, including the two *equal* cells, where nothing about
+scarcity changes:
+
+```{r fig-compare}
+#| fig-cap: "Difference in loo between the $K = 6$ and $K = 2$ models, summed over each task x scarcity cell (point: sum; bars: 2 SE)."
+```
+
+But this doesn't mean scarcity changes behaviour on average. In a
+multi-level model, separate conditions also give each person separate
+values in each condition, and loo rewards that whenever individuals
+behave a little differently from cell to cell, even when the population
+values are identical (see the `condition_difference` example). So loo
+answers a different question:
+
+- **Do individuals behave differently across scarcity levels?** Loo:
+  yes, clearly.
+- **Does scarcity change behaviour on average?** The posterior of the
+  population differences between the scarcity levels.
+
+*Note*: 5.7% of trials have a high Pareto $k$ in the $K = 6$ fit (0.6% in
+the $K = 2$ fit), so the size of the loo difference is approximate; the
+winner is robust to leaving those trials out.
+
+### The scarcity bias
+
+For the population question, we use the paper's parameters (see the
+single-level cat example): the bias towards class A, $b_a$ (the average
+of the transition matrix's two rows' log-odds of A over B), and the
+stick/switch rate, $b_s$ (half their difference).
+
+```{r papers-scale}
+```
+
+A scarcity bias would push $b_a$ up when A is scarce and down when B is
+scarce, compared with the equal condition.
+
+```{r fig-scarcity}
+#| fig-height: 4
+#| fig-cap: "Population $b_a$ (bias towards class A) and $b_s$ (stick/switch rate) in each scarce condition minus the equal condition, by task: medians with 53% and 97% HPDIs. Dashed line: no difference."
+```
+
+Every difference is close to 0, with 0 inside its 97% HPDI. In
+feature search, $b_a$ moves slightly in the predicted direction (A
+scarce minus B scarce: 0.40, 97% HPDI $-0.16$ to 0.92), but not
+reliably. Stickiness ($b_s$) doesn't change with scarcity in either task.
+This matches the paper: no evidence of a scarcity bias, even though each
+person's behaviour varies from one scarcity level to another.
