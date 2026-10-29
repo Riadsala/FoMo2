@@ -33,14 +33,14 @@ download this repository and run scripts from inside it.
    if the toolchain check fails (on Windows, it needs RTools).
 3. Optional: [Quarto](https://quarto.org), to render the example pages
    (`.qmd`) yourself. The rendered pages are online at
-   <https://riadsala.github.io/Fomo2/>.
+   <https://riadsala.github.io/FoMo2/>.
 
 Then start any script with `source("<path to>/functions/set_up_FoMo.R")`.
 Each model compiles the first time it is used (a minute or two each).
 
 ## Start here
 
-1. [`examples/simulated/single_level/spatial/`](https://riadsala.github.io/Fomo2/examples/simulated/single_level/spatial/spatial.html): simulate data
+1. [`examples/simulated/single_level/spatial/`](https://riadsala.github.io/FoMo2/examples/simulated/single_level/spatial/spatial.html): simulate data
    from the model, fit it, check the parameters are recovered, and read
    the results. The model is explained there.
 2. The other simulated examples (`single_level/cat`, then `multi_level/`):

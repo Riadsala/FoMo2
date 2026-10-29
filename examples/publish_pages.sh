@@ -9,7 +9,7 @@
 #
 # Render the pages you changed first, then, from anywhere in the repo:
 #   sh examples/publish_pages.sh
-# The site is https://riadsala.github.io/Fomo2/ (GitHub: Settings ->
+# The site is https://riadsala.github.io/FoMo2/ (GitHub: Settings ->
 # Pages -> deploy from branch gh-pages, once).
 ##########################################################################
 
@@ -40,8 +40,8 @@ pages=$(find examples -name '*.html' -not -path '*_files/*' | sort)
 </head>
 <body>
 <h1>FoMo 2.0: worked examples</h1>
-<p>Rendered pages from the <a href="https://github.com/Riadsala/Fomo2">FoMo 2.0 repository</a>.
-Start with the single-level spatial example; <a href="https://github.com/Riadsala/Fomo2/blob/main/examples/README.md">examples/README.md</a> gives the reading order.</p>
+<p>Rendered pages from the <a href="https://github.com/Riadsala/FoMo2">FoMo 2.0 repository</a>.
+Start with the single-level spatial example; <a href="https://github.com/Riadsala/FoMo2/blob/main/examples/README.md">examples/README.md</a> gives the reading order.</p>
 <ul>
 EOF
   for page in $pages; do

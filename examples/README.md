@@ -1,7 +1,7 @@
 # Examples
 
 Worked examples of FoMo, each a rendered page with the code that made it.
-Read the pages at <https://riadsala.github.io/Fomo2/>. They are not in the
+Read the pages at <https://riadsala.github.io/FoMo2/>. They are not in the
 repository: render a `.qmd` (below) to make the `.html` locally.
 
 ## Reading order

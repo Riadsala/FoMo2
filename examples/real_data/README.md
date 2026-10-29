@@ -5,7 +5,7 @@ fits take hours, so the pages don't fit anything themselves: they read
 saved fits. The fits are **not in the repository** (each is 40-200 MB), so
 you make them once, and then the pages can run.
 
-The rendered pages are online at <https://riadsala.github.io/Fomo2/>, so
+The rendered pages are online at <https://riadsala.github.io/FoMo2/>, so
 you can read them without any fits.
 
 ## How to run a page
