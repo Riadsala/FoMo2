@@ -24,13 +24,13 @@ cd "$root"
 pages=$(find examples -name '*.html' -not -path '*_files/*' | sort)
 [ -n "$pages" ] || { echo "No rendered pages in examples/: render them first." >&2; exit 1; }
 
-# section <level> <heading> <folder>: a heading (<h2>, <h3>, ...), then
-# each of the folder's pages, copied to the same path on the site and
-# listed under it
+# section <level> <heading> <folder> [<except>]: a heading (<h2>, <h3>,
+# ...), then each of the folder's pages (leaving out those in the folder
+# <except>), copied to the same path on the site and listed under it
 section() {
   echo "<h$1>$2</h$1>"
   echo "<ul>"
-  for page in $(echo "$pages" | grep "^$3/"); do
+  for page in $(echo "$pages" | grep "^$3/" | grep -v "^${4:-/}/"); do
     mkdir -p "$site/$(dirname "$page")"
     cp "$page" "$site/$page"
     title=$(sed -n 's:.*<title>\(.*\)</title>.*:\1:p' "$page" | head -1)
@@ -61,7 +61,9 @@ EOF
   section 3 "Single-level models" examples/simulated/single_level
   section 3 "Multi-level models" examples/simulated/multi_level
   section 3 "Model comparison" examples/simulated/model_comparison
-  section 2 "Fitting FoMo to empirical datasets" examples/real_data
+  echo "<h2>Fitting FoMo to empirical datasets</h2>"
+  section 3 "Datasets" examples/real_data examples/real_data/fourier_versus_vonmises
+  section 3 "Model comparison" examples/real_data/fourier_versus_vonmises
   cat <<'EOF'
 </body>
 </html>
