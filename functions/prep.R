@@ -1,6 +1,6 @@
 # von Mises concentration of each directional component: the one default
 # used for simulating, fitting and plotting
-FOMO_KAPPA <- 30
+FOMO_KAPPA <- 20
 
 # per-person effects sampled centred by default in multi-level fits (each
 # model centres the ones it has; spatial models have no v). From an Oct
