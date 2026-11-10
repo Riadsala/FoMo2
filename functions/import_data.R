@@ -93,7 +93,7 @@ verify_data <- function(stim, found = NULL, label = "data", show_notes = TRUE) {
   report()
 
   # --- stim
-  add(!anyNA(select(stim, person, condition, trial, id, x, y)), "NAs in stim")
+  add(!anyNA(dplyr::select(stim, person, condition, trial, id, x, y)), "NAs in stim")
   add(all(is.finite(stim$x) & is.finite(stim$y)), "non-finite stim$x or stim$y")
   add(is.factor(stim$condition), "stim$condition is not a factor")
   add(all(levels(stim$condition) %in% stim$condition), "stim$condition has unused levels")
@@ -127,7 +127,7 @@ verify_data <- function(stim, found = NULL, label = "data", show_notes = TRUE) {
   # --- found
   found_trials <- NULL
   if (!is.null(found)) {
-    add(!anyNA(select(found, trial, id, n)), "NAs in found$trial, found$id or found$n")
+    add(!anyNA(dplyr::select(found, trial, id, n)), "NAs in found$trial, found$id or found$n")
     add(!is.unsorted(found$trial), "found is not sorted by trial")
 
     found_trials <- found |>
@@ -186,7 +186,7 @@ filter_one_person <- function(d, pp) {
   # one person's data, as person 1 with trials numbered 1, 2, ...
   map(list(found = d$found, stim = d$stim), function(x) {
     x |>
-      filter(person == pp) |>
+      dplyr::filter(person == pp) |>
       mutate(person = 1, trial = dense_rank(trial))
   })
 }
@@ -207,7 +207,7 @@ subset_trials <- function(d, trials) {
     x |>
       inner_join(key, by = c("person", "condition", "trial")) |>
       mutate(person = new_person, trial = new_trial) |>
-      select(-new_person, -new_trial)
+      dplyr::select(-new_person, -new_trial)
   }
   list(stim = renumber(d$stim) |> arrange(trial, id),
        found = renumber(d$found) |> arrange(trial, n))
@@ -244,7 +244,7 @@ read_foraging_csv <- function(file, ...) {
 
 drop_na_trials <- function(d) {
   # remove every trial with a missing item class
-  filter(d, !any(is.na(targ_type)), .by = c(condition, trial, observer))
+  dplyr::filter(d, !any(is.na(targ_type)), .by = c(condition, trial, observer))
 }
 
 rescale_xy <- function(d) {
@@ -262,10 +262,10 @@ flip_y <- function(d) {
 split_stim_found <- function(d) {
   # stim: every item; found: the selected items, in selection order
   list(stim = d |>
-         select(person, condition, trial, id, x, y, v, trial_p) |>
+         dplyr::select(person, condition, trial, id, x, y, v, trial_p) |>
          arrange(person, condition, trial, id),
        found = d |>
-         filter(n > 0) |>
+         dplyr::filter(n > 0) |>
          arrange(person, condition, trial, n))
 }
 
@@ -277,7 +277,7 @@ import_tagu2022cog2items <- function(data_path) {
   # item classes: targ_type 0 (high value) is class 2, the rest class 1
   read_foraging_csv(file.path(data_path, "tagu2022cog", "tagu_2020_prox_mouse.csv")) |>
     drop_na_trials() |>
-    select(person = observer, condition, trial, id, n = found, v = targ_type, x, y) |>
+    dplyr::select(person = observer, condition, trial, id, n = found, v = targ_type, x, y) |>
     mutate(v = as.factor(if_else(v == 0, 2, 1)),
            condition = fct_recode(as.factor(condition), value = "1", control = "2")) |>
     fix_person_and_trial() |>
@@ -315,7 +315,7 @@ import_tagu2022cog <- function(data_path) {
   # for each (observer, condition) block, the 2 non-high-value colours get
   # roles 2 and 3, in colour-number order
   d |>
-    filter(targ_type != high_value_colour) |>
+    dplyr::filter(targ_type != high_value_colour) |>
     distinct(observer, condition, targ_type) |>
     arrange(observer, condition, targ_type) |>
     mutate(v = row_number() + 1, .by = c(observer, condition)) -> role_lookup
@@ -326,7 +326,7 @@ import_tagu2022cog <- function(data_path) {
   d |>
     left_join(role_lookup, by = c("observer", "condition", "targ_type")) |>
     mutate(v = if_else(targ_type == high_value_colour, 1, v)) |>
-    select(person = observer, condition, trial, id, n = found, v, x, y) |>
+    dplyr::select(person = observer, condition, trial, id, n = found, v, x, y) |>
     mutate(v = as.factor(v),
            condition = fct_recode(as.factor(condition), value = "1", control = "2")) |>
     fix_person_and_trial() |>
@@ -340,7 +340,7 @@ import_clarke2022qjep <- function(data_path) {
   # x and y are already scaled
   read_foraging_csv(file.path(data_path, "clarke2022qjep", "clarke2022qjep_collected.csv"),
                     RT = col_double()) |>
-    select(person = observer, condition, trial, id, n = found, v = targ_type, x, y) |>
+    dplyr::select(person = observer, condition, trial, id, n = found, v = targ_type, x, y) |>
     mutate(v = as.factor(v + 1),
            condition = fct_recode(as.factor(condition), feature = "1", conjunction = "2")) |>
     fix_person_and_trial() |>
@@ -368,7 +368,7 @@ import_hughes2024rsos <- function(data_path, scarcity = TRUE) {
              trial_p = if_else(trial_p > 5,
                                10 + (blk - 1) * 5 + trial_p,
                                (blk - 1) * 5 + trial_p)) |>
-      select(-blk) |>
+      dplyr::select(-blk) |>
       arrange(person, trial)
   }
 
@@ -391,7 +391,7 @@ import_hughes2024rsos <- function(data_path, scarcity = TRUE) {
     # scarcity column entirely (K = 2), pooling the scarceA/equal/scarceB
     # blocks together within each task condition rather than splitting on
     # scarcity at all
-    map(d, \(x) select(x, -scarcity))
+    map(d, \(x) dplyr::select(x, -scarcity))
   }
 }
 
@@ -404,7 +404,7 @@ import_kristjansson2014plos <- function(data_path) {
           "orientation is an assumption - treat absolute-direction results with caution.")
 
   read_foraging_csv(file.path(data_path, "kristjansson2014plos", "human_data_2014_prox.csv")) |>
-    select(person = observer, condition, trial, id, n = found, v = targ_type, x, y) |>
+    dplyr::select(person = observer, condition, trial, id, n = found, v = targ_type, x, y) |>
     mutate(v = as.factor(v + 1),
            condition = fct_recode(as.factor(condition), feature = "1", conjunction = "2"),
            # rotate the display by 180 degrees. As stored, first
@@ -417,3 +417,107 @@ import_kristjansson2014plos <- function(data_path) {
     split_stim_found()
 }
 
+
+########################################################################
+# the python visual foraging experiment (github.com/scienceanna/visual_foraging_exp)
+
+import_visforag <- function(folder, remove_distractors = TRUE) {
+
+  # generic importer for the output of the PsychoPy experiment. folder: a
+  # folder holding the per-session files (<id>_stim.csv, <id>_found.csv, ...),
+  # in it or in any subfolders (e.g. one folder per participant).
+  # remove_distractors: TRUE (default) keeps only the targets: distractors
+  # are dropped from stim, and clicks on them from found. FALSE keeps every
+  # item, and the first click on each distractor counts as a selection.
+  #
+  # - practice blocks (listed in the session's _pblocks.csv) are dropped
+  # - if a trial was recycled, only its last attempt is kept
+  # - item_class (t1, t2, ..., d1, d2, ...) becomes v, a factor with the
+  #   targets first, then the distractors, in numerical order
+  # - with remove_distractors, items are renumbered so that id is 1..nt over
+  #   the targets left in each trial
+  # - the experiment's x and y are pixels, origin at the screen centre, y up;
+  #   rescaled to x in [0, 1], y in [0, a] by the width of the display
+  # - selection order n is the row order of the click log
+
+  stim_files <- list.files(folder, pattern = "_stim[.]csv$", recursive = TRUE, full.names = TRUE)
+  if (length(stim_files) == 0) stop("no *_stim.csv files found in '", folder, "'")
+
+  read_session <- function(stim_file) {
+
+    session <- sub("_stim[.]csv$", "", stim_file)
+    found_file <- paste0(session, "_found.csv")
+    if (!file.exists(found_file)) stop("no matching _found.csv for ", stim_file)
+
+    # block labels of practice blocks: the "label" row of _pblocks.csv
+    # (the transposed config, one column per block)
+    pblocks_file <- paste0(session, "_pblocks.csv")
+    practice <- if (file.exists(pblocks_file)) {
+      pb <- read_csv(pblocks_file, show_col_types = FALSE, name_repair = "minimal")
+      unlist(pb[pb$attribute == "label", -(1:2)], use.names = FALSE)
+    } else {
+      character(0)
+    }
+
+    keys <- c("person", "block", "condition", "trial")
+    stim  <- read_csv(stim_file,  show_col_types = FALSE,
+                      col_types = cols(person = col_double(), block = col_character(),
+                                       condition = col_character(), item_class = col_character()))
+    found <- read_csv(found_file, show_col_types = FALSE,
+                      col_types = cols(person = col_double(), block = col_character(),
+                                       condition = col_character(), item_class = col_character()))
+
+    # drop practice, and keep only the last attempt of each trial
+    last_attempt <- stim |>
+      dplyr::filter(!(block %in% practice)) |>
+      summarise(attempt = max(attempt), .by = all_of(keys))
+    stim  <- semi_join(stim,  last_attempt, by = c(keys, "attempt"))
+    found <- semi_join(found, last_attempt, by = c(keys, "attempt"))
+
+    if (remove_distractors) found <- dplyr::filter(found, startsWith(item_class, "t"))
+
+    # selection order: click order within the trial (the click log is chronological);
+    # a repeat click on the same item is not a new selection
+    found <- found |>
+      arrange(across(all_of(keys)), rt) |>
+      distinct(across(all_of(c(keys, "id"))), .keep_all = TRUE) |>
+      mutate(n = row_number(), .by = all_of(keys)) |>
+      dplyr::select(all_of(keys), id, n)
+
+    stim |>
+      left_join(found, by = c(keys, "id")) |>
+      mutate(n = coalesce(n, 0L)) |>
+      dplyr::select(all_of(keys), id, n, item_class, x, y)
+  }
+
+  d <- map(stim_files, read_session) |> bind_rows()
+
+  # targets (t1, t2, ...) then distractors (d1, d2, ...), each in numerical order
+  classes <- unique(d$item_class)
+  classes <- c(str_sort(classes[startsWith(classes, "t")], numeric = TRUE),
+               str_sort(classes[!startsWith(classes, "t")], numeric = TRUE))
+
+  d <- d |>
+    mutate(v = factor(item_class, levels = classes),
+           condition = factor(condition, levels = str_sort(unique(condition), numeric = TRUE))) |>
+    dplyr::select(person, block, condition, trial, id, n, v, x, y) |>
+    fix_person_and_trial() |>
+    rescale_xy()
+
+  if (remove_distractors) {
+    # after rescaling, so the display's scale doesn't depend on this choice;
+    # renumbering keeps stim$id = 1..nt, and found$id (taken from these rows)
+    # still points at the same item
+    d <- d |>
+      dplyr::filter(startsWith(as.character(v), "t")) |>
+      mutate(v = droplevels(v)) |>
+      arrange(trial, id) |>
+      mutate(id = row_number(), .by = trial)
+  }
+
+  res <- split_stim_found(d)
+  res$stim  <- dplyr::select(res$stim, -any_of("block"))
+  verify_data(res$stim, res$found, "visforag")
+
+  list(dataset = "visforag", stim = res$stim, found = res$found)
+}
