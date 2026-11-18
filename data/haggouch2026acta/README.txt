@@ -1,0 +1,1 @@
+HAGGOUCH, M., Doré-Mazars, K., & Tagu, J. (2025, September 4). Supplementary material for “Visual foraging and individual characteristics: Contribution of executive functions and personality”. Retrieved from https://osf.io/rn6m5/
