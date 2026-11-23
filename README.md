@@ -5,6 +5,10 @@ proximity, movement direction and item features. R + Stan (cmdstanr)
 implementation of Clarke & Hughes (2026, *PLoS Comp Bio*), building on Clarke,
 Hunt & Hughes (2022, *PLoS Comp Bio*).
 
+## AI Disclaimer
+
+While the repository that accompanies Clarke & Hughes (2026, *PLoS Comp Bio*) is entirely human written, this repository has been extensively optimised and tested with Claude Opus. As such, it is much faster to run, but at a cost in code readaiblity. Where relevant, we have tested that two versions of the model give comparable (often identical) posterior distributions. 
+
 ## Installation
 
 FoMo is a set of R functions and Stan models, not a package: clone or
