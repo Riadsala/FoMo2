@@ -30,7 +30,8 @@ quarto render tagu2022cog.qmd
 | `tagu2022cog/` | `fit_tagu2022cog.R` (2 fits) | about 2.5 h |
 | `hughes2024rsos/` | `fit_hughes2024rsos.R` (2 fits) | about 3.5 h |
 | `clarke2022qjep/` | `fit_clarke2022qjep.R` (1 fit) | about 4 h |
-| `fourier_versus_vonmises/` | `fit_fourier_versus_vonmises.R` (4 fits, then the comparison); run the four scripts above first | about 14 h |
+| `fourier_versus_vonmises/` | `fit_fourier_versus_vonmises.R` (4 fits, then the comparison); run the four scripts above first (not haggouch2026acta) | about 14 h |
+| `haggouch2026acta/` | `fit_haggouch2026acta.R` (1 fit) | about 5 h (estimated) |
 
 Run the scripts where the computer won't go to sleep (plugged in, lid
 open), or from a terminal with `nohup`.

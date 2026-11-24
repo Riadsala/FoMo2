@@ -40,7 +40,8 @@ predictive check. All use the default directional model, Fourier-124.
 | `tagu2022cog/` | Tagu et al. (2022): three target colours, with and without value | three item classes vs two |
 | `hughes2024rsos/` | Hughes et al. (2024): target scarcity | does scarcity matter? (individuals change, the average doesn't) |
 | `clarke2022qjep/` | Clarke et al. (2022): 58 people, feature and conjunction | none yet |
-| `fourier_versus_vonmises/` | every dataset | Fourier vs von Mises directional models |
+| `fourier_versus_vonmises/` | the four datasets above | Fourier vs von Mises directional models |
+| `haggouch2026acta/` | Haggouch et al. (2026): 304 people, two foraging tasks | none yet |
 
 These pages read saved fits rather than fitting live: the fits take hours
 and are not in the repository. In each folder, run `fit_<name>.R` first:

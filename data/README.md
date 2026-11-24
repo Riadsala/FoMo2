@@ -18,6 +18,7 @@ e.g. simulated or subsetted, is checked too.
 | `kristjansson2014plos` | Kristjánsson, Jóhannesson & Thornton (2014). Common attentional constraints in visual foraging. *PLoS ONE*, 9(6), e100752. doi:10.1371/journal.pone.0100752 | the paper's supporting information (S1) | CC BY (the article's Creative Commons Attribution licence, which covers its supporting information) |
 | `tagu2022cog`, `tagu2022cog2items` | Tagu & Kristjánsson (2022). The selection balance: Contrasting value, proximity and priming in a multitarget foraging task. *Cognition*, 218, 104935. doi:10.1016/j.cognition.2021.104935 | [osf.io/e7cnd](https://osf.io/e7cnd/) | CC BY 4.0 |
 | `hughes2024rsos` | Hughes, Statham & Clarke (2024). The effect of target scarcity on visual foraging. *Royal Society Open Science*, 11(12), 240060. doi:10.1098/rsos.240060 | [github.com/Riadsala/foraging_scarcity](https://github.com/Riadsala/foraging_scarcity) | CC BY 4.0 |
+| `haggouch2026acta` | Haggouch, Doré-Mazars & Tagu (2026). Visual foraging and individual characteristics: Contribution of executive functions and personality. (TODO: journal, volume, doi) | [osf.io/rn6m5](https://osf.io/rn6m5/) | TODO: check |
 
 ## `stim`: one row per item per trial (all items displayed)
 
@@ -73,6 +74,15 @@ Rules:
   conjunction).
 - `tagu2022cog` has 3 item classes; `tagu2022cog2items` has 2 (the
   high-value targets, and the rest).
+- `haggouch2026acta` (shorthand `H2026`): read from
+  `foraging_unfiltered_long.csv`, which has every selection (the
+  `df_mixed_*` files drop the first and last). Trials are exhaustive (all
+  40 targets, 20 per class, selected), so the selections are the whole
+  display. 19 `PARTICIPANT` ids are shared by two people, so a person is
+  the (`PARTICIPANT`, `contrebalancement`) pair: 304 people x 2 tasks x 14
+  trials. Coordinates are in a fixed frame for everyone, so there's no
+  screen-size scaling. y is flipped: with the flip, 88% of first
+  selections are in the top half.
 
 ## Adding a dataset
 

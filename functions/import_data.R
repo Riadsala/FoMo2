@@ -16,7 +16,8 @@ DATASET_SHORTHAND <- c(
   K2014 = "kristjansson2014plos",
   H2024 = "hughes2024rsos",
   C2022 = "clarke2022qjep",
-  T2022 = "tagu2022cog")
+  T2022 = "tagu2022cog",
+  H2026 = "haggouch2026acta")
 
 import_data <- function(dataset, ...) {
 
@@ -25,7 +26,8 @@ import_data <- function(dataset, ...) {
                     tagu2022cog          = import_tagu2022cog,
                     tagu2022cog2items    = import_tagu2022cog2items,
                     kristjansson2014plos = import_kristjansson2014plos,
-                    hughes2024rsos       = import_hughes2024rsos)
+                    hughes2024rsos       = import_hughes2024rsos,
+                    haggouch2026acta     = import_haggouch2026acta)
 
   if (toupper(dataset) %in% names(DATASET_SHORTHAND)) {
     dataset <- DATASET_SHORTHAND[[toupper(dataset)]]
@@ -286,6 +288,8 @@ import_tagu2022cog2items <- function(data_path) {
     split_stim_found()
 }
 
+
+
 import_tagu2022cog <- function(data_path) {
 
   # like import_tagu2022cog2items(), but keeps all 3 target colours per block
@@ -334,6 +338,37 @@ import_tagu2022cog <- function(data_path) {
     flip_y() |>
     split_stim_found()
 }
+
+
+import_haggouch2026acta <- function(data_path) {
+
+  # one row per selection, first and last included. Every trial is
+  # exhaustive (all 40 targets selected), so the selections are also the
+  # full display. xpos/ypos are in a fixed stimulus frame (the same
+  # 778 x 614 extent for every participant, whatever their screen), so
+  # they need no screen-size scaling.
+  # 19 PARTICIPANT ids are shared by two people, told apart by
+  # contrebalancement, so a person is the (PARTICIPANT, contrebalancement)
+  # pair
+  read_csv(file.path(data_path, "haggouch2026acta", "foraging_unfiltered_long.csv"),
+           show_col_types = FALSE) |>
+    dplyr::select(person = PARTICIPANT, counter_bal = contrebalancement,
+                  condition = TASKNAME, trial = TRIALCOUNT,
+                  n = NbSelect, id = Stim_clicked,
+                  x = xpos, y = ypos, v = Stim_category) |>
+    # remove practice trials
+    dplyr::filter(!str_detect(condition, "train")) |>
+    mutate(person = paste(person, counter_bal, sep = "_"),
+           condition = factor(condition),
+           n = parse_number(n),
+           v = factor(v)) |>
+    dplyr::select(-counter_bal) |>
+    fix_person_and_trial() |>
+    rescale_xy() |>
+    flip_y() |>
+    split_stim_found()
+}
+
 
 import_clarke2022qjep <- function(data_path) {
 

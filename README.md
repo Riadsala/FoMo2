@@ -117,7 +117,8 @@ attaching them: MASS's `select()` makes FoMo's functions fail, and plyr's
 ## Datasets
 
 `kristjansson2014plos` (K2014), `hughes2024rsos` (H2024), `clarke2022qjep`
-(C2022) and `tagu2022cog` (T2022; `tagu2022cog2items` with 2 classes).
+(C2022), `tagu2022cog` (T2022; `tagu2022cog2items` with 2 classes) and
+`haggouch2026acta` (H2026).
 Data format, caveats and sources: `data/README.md`.
 
 ## Repository
