@@ -151,7 +151,7 @@ The fit doesn't store a prediction for every selection
 from 200 posterior draws. Deterministic accuracy is how often the item the
 model judges most likely is the one selected; the probability of the
 chosen item credits being nearly right too. Chance (dotted) is
-1 / items left; the nearest-neighbour rule (dashed) always picks the
+$1/n$, with $n$ the items left; the nearest-neighbour rule (dashed) always picks the
 closest item, so the gap above it is what the model adds to proximity
 alone. This is in-sample accuracy, which overestimates out-of-sample
 accuracy.

@@ -206,7 +206,7 @@ is the one selected.
 - Probability of the chosen item: the probability the
 model gave the item that was selected, averaged over selections; it
 credits the model for being nearly right, not only for top picks.
-- Chance (1 / items left) rises through a trial as fewer items remain.
+- Chance ($1/n$, with $n$ the items left) rises through a trial as fewer items remain.
 - The nearest-neighbour baseline always picks the closest remaining
 item, so the gap above it is what the model adds to proximity alone.
 
