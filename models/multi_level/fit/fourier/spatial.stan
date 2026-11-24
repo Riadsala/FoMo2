@@ -7,60 +7,57 @@
 // Multi-level: per-person effects on every term, each group centred or
 // non-centred (centre_*: prep_stan_list(centred_params)).
 //
-// Data-only quantities (distances, directions, the items left) are computed
-// once in transformed data; trials are summed with reduce_sum. Generated
-// quantities: prior draws, per-trial log_lik (loo) and, with save_selections
-// = 1, per selection P (sampled item), W (most likely item) and loglik.
-// Simulate model: ../../simulate/fourier/spatial.stan.
+// The likelihood uses the flat layout (../../../include/flat_functions.stan):
+// every selection has one column per item left in F, a matrix of data with
+// rows distance, Fourier basis (H2 rows) and turning angle, so an item's
+// log-weight is beta . F[, item], with beta = (-rho_delta, fourier_coef,
+// -rho_psi) for that person and condition: one matrix product per trial.
+//
+// Data-only quantities (F and its indices) are computed once in transformed
+// data; trials are summed with reduce_sum. Generated quantities: prior
+// draws, per-trial log_lik (loo) and, with save_selections = 1, per
+// selection P (sampled item), W (most likely item) and loglik.
+// Simulate model: ../../simulate/fourier/spatial.stan (computes each
+// selection separately: the readable reference for this likelihood).
 
 functions {
   #include ../../../include/FoMo_functions.stan
   #include ../../../include/fourier_functions.stan
+  #include ../../../include/flat_functions.stan
 
-  row_vector compute_weights(
-    int n_avail,
-    real rho_delta, row_vector coef, real rho_psi,
-    row_vector d, matrix basis, row_vector psi) {
-      row_vector[n_avail] weights;
-
-      weights = to_row_vector(-rho_delta * d);
-      weights += compute_fourier_absdir_weights(coef, basis);
-      weights +=  -rho_psi * psi;
-
-      // every item passed in is available: normalise
-      weights -= log_sum_exp(weights);
-
-      return(weights);
+  // a person's coefficients, in F's row order: distance, Fourier basis,
+  // turning angle (distance and turn enter with a minus sign)
+  row_vector person_beta(array[] vector u_delta, array[,] vector u_fourier_coef,
+                         array[] vector u_psi, int k, int l) {
+    return append_col(append_col(-u_delta[k, l], get_person_fourier_coef(u_fourier_coef, k, l)),
+                      -u_psi[k, l]);
   }
 
-  // log-likelihood of a chunk of trials (reduce_sum); sel_start_idx[t]: trial
-  // t's first row in the per-selection arrays
+  // unnormalised log-weights of trial t's block of F: every item left at
+  // each of its selections
+  row_vector trial_weights(int t, array[] int flat_start, array[] int flat_len,
+                           row_vector beta, matrix F) {
+    return beta * block(F, 1, flat_start[t], rows(F), flat_len[t]);
+  }
+
+  // log-likelihood of a chunk of trials (reduce_sum)
   real partial_sum_lpmf(
       array[] int trial_slice, int start, int end,
       array[] int f, array[] int s, array[] int X, array[] int z,
-      array[] int sel_start_idx, array[] int p_at_step,
+      array[] int sel_start_idx,
+      array[] int flat_start, array[] int flat_len,
+      array[] int seg_rel, array[] int chosen_rel,
       array[] vector u_delta, array[,] vector u_fourier_coef, array[] vector u_psi,
-      matrix delta_g, array[] matrix basis_g, matrix psi_g) {
+      matrix F) {
     real lp = 0;
 
     for (t in trial_slice) {
-      int k = X[t];
-      int n_avail = s[t];
-      int idx = sel_start_idx[t];
-
-      row_vector[size(u_fourier_coef[k])] person_coef = get_person_fourier_coef(u_fourier_coef, k, z[t]);
-
-      for (ii in 1:f[t]) {
-        row_vector[n_avail] weights = compute_weights(n_avail,
-          u_delta[k, z[t]], person_coef, u_psi[k, z[t]],
-          delta_g[idx, 1:n_avail], basis_g[idx][, 1:n_avail], psi_g[idx, 1:n_avail]);
-
-        lp += weights[p_at_step[idx]];
-
-        n_avail -= 1;
-        idx += 1;
-
-      }
+      int k = X[t];   // condition
+      int l = z[t];   // person
+      // every selection's log-weights at once
+      row_vector[flat_len[t]] w = trial_weights(t, flat_start, flat_len,
+        person_beta(u_delta, u_fourier_coef, u_psi, k, l), F);
+      lp += flat_trial_loglik(w, sel_start_idx[t], s[t], f[t], 1, seg_rel, chosen_rel);
     }
 
     return lp;
@@ -139,33 +136,33 @@ transformed data {
   array[Ns, max(s)] int avail_order = compute_availability_order(Ns, T, s, f, Y);
   array[Ns] int p_at_step = compute_selected_position(Ns, T, s, f, Y);
 
-  // per selection, delta, direction and psi in availability order (unfilled
-  // beyond n_avail)
-  matrix[Ns, max(s)] delta_g;
-  array[Ns] matrix[H2, max(s)] basis_g;
-  matrix[Ns, max(s)] psi_g;
+  // the flat layout (flat_functions.stan): every selection (first_sel = 1)
+  int D = H2 + 2; // rows of F: distance, Fourier basis, turning angle
+  int M = count_flat(s, f, T, 1);
+  array[T] int flat_start = flat_trial_start(s, f, T, 1);
+  array[T] int flat_len = flat_trial_len(s, f, T, 1);
+  array[Ns] int seg_rel = flat_seg_rel(s, f, T, Ns, 1);
+  array[Ns] int chosen_rel = flat_chosen_rel(seg_rel, p_at_step);
+  matrix[D, M] F; // each column's features
 
   {
     // distance, direction and turning angle by item id: local to this
-    // block, so they are freed once gathered into availability order
+    // block, so they are freed once copied into F
     matrix[Ns, max(s)] delta = compute_delta(Ns, Y, s, trial, x, y, new_trl_flag, trial_start_idx);
-    matrix[Ns, max(s)] phi   =   compute_phi(Ns, Y, s, trial, x, y, new_trl_flag, trial_start_idx);
-    matrix[Ns, max(s)] psi   =   compute_psi(Ns, Y, s, trial, x, y, new_trl_flag, trial_start_idx);
+    matrix[Ns, max(s)] phi   = compute_phi(Ns, Y, s, trial, x, y, new_trl_flag, trial_start_idx);
+    matrix[Ns, max(s)] psi   = compute_psi(Ns, Y, s, trial, x, y, new_trl_flag, trial_start_idx);
     // Fourier basis for every selection, once
     array[Ns] matrix[H2, max(s)] basis =
       compute_fourier_basis_by_cond(Ns, s, trial, X, phi, harmonics, dir_offset);
 
-    int idx = 1;
-    for (t in 1:T) {
-      int n_avail = s[t];
-      for (ii in 1:f[t]) {
-        array[n_avail] int avail = avail_order[idx, 1:n_avail];
-        delta_g[idx, 1:n_avail] = delta[idx, avail];
-        basis_g[idx][, 1:n_avail] = basis[idx][, avail];
-        psi_g[idx, 1:n_avail] = psi[idx, avail];
-        n_avail -= 1;
-        idx += 1;
-      }
+    // each column's selection and item
+    array[M, 2] int cols = flat_cols(s, f, T, 1, avail_order, M);
+    for (c in 1:M) {
+      int sel = cols[c, 1];
+      int item = cols[c, 2];
+      F[1, c] = delta[sel, item];
+      F[2:(H2 + 1), c] = basis[sel][, item];
+      F[D, c] = psi[sel, item];
     }
   }
 
@@ -230,8 +227,8 @@ model {
   // likelihood, summed over trials in parallel (reduce_sum)
 
   target += reduce_sum(partial_sum_lpmf, trial_ids, grainsize,
-    f, s, X, z, sel_start_idx, p_at_step,
-    u_delta, u_fourier_coef, u_psi, delta_g, basis_g, psi_g);
+    f, s, X, z, sel_start_idx, flat_start, flat_len, seg_rel, chosen_rel,
+    u_delta, u_fourier_coef, u_psi, F);
 
 }
 
@@ -269,34 +266,28 @@ generated quantities {
   loglik = rep_vector(0, Ns_out);
   log_lik = rep_vector(0, T);
 
-  {
-    int idx = 1;
+  for (t in 1:T) {
+    int k = X[t]; // condition
+    int l = z[t]; // person
+    int idx = sel_start_idx[t];
 
-    for (t in 1:T) {
-      int k = X[t]; // condition
-      int n_avail = s[t]; // items left
+    // log-weights of the trial's selections (unnormalised), once
+    row_vector[flat_len[t]] w = trial_weights(t, flat_start, flat_len,
+      person_beta(u_delta, u_fourier_coef, u_psi, k, l), F);
 
-      // this person's values
-      row_vector[H2] person_coef = get_person_fourier_coef(u_fourier_coef, k, z[t]);
+    for (ii in 1:f[t]) {
+      int n_avail = s[t] - ii + 1; // items left
+      int p = p_at_step[idx];
+      row_vector[n_avail] weights = flat_selection_weights(w, seg_rel[idx], n_avail);
 
-      for (ii in 1:f[t]) {
-        row_vector[n_avail] weights = compute_weights(n_avail,
-          u_delta[k, z[t]], person_coef, u_psi[k, z[t]],
-          delta_g[idx, 1:n_avail], basis_g[idx][, 1:n_avail], psi_g[idx, 1:n_avail]);
+      if (save_selections) loglik[idx] = weights[p];
+      log_lik[t] += weights[p];
+      // P: an item sampled from the weights; W: the most likely item
+      // (indices within the trial)
+      if (save_selections) P[idx] = avail_order[idx, categorical_rng(exp(to_vector(weights)))];
+      if (save_selections) W[idx] = avail_order[idx, which_max(weights)];
 
-        int p = p_at_step[idx];
-
-        if (save_selections) loglik[idx] = weights[p];
-        log_lik[t] += weights[p];
-        // P: an item sampled from the weights; W: the most likely item
-        // (indices within the trial)
-        if (save_selections) P[idx] = avail_order[idx, categorical_rng(exp(to_vector(weights)))];
-        if (save_selections) W[idx] = avail_order[idx, which_max(weights)];
-
-        n_avail -= 1;
-        idx += 1;
-
-      }
+      idx += 1;
     }
   }
 }
