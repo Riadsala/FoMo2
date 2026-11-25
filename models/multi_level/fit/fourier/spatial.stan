@@ -5,7 +5,9 @@
 // {cos, sin} per harmonic, or cos only) and relative direction (rho_psi).
 //
 // Multi-level: per-person effects on every term, each group centred or
-// non-centred (centre_*: prep_stan_list(centred_params)).
+// not (centre_*: prep_stan_list(centred_params)). Not centred: distance and
+// class effects non-centred (offset/multiplier); relative and absolute
+// direction in sum-to-zero form (see their parameters).
 //
 // The likelihood uses the flat layout (../../../include/flat_functions.stan):
 // every selection has one column per item left in F, a matrix of data with
@@ -181,8 +183,8 @@ transformed data {
 parameters {
   // fixed effects
   array[K] real<lower = 0> rho_delta; // distance
-  array[K] real rho_psi; // relative direction
-  matrix[K, H2] fourier_coef; // absolute direction: {cos, sin} per harmonic
+  // relative direction (rho_psi) and absolute direction (fourier_coef:
+  // {cos, sin} per harmonic, or cos only): with their per-person values below
 
   // random effects
 
@@ -194,10 +196,58 @@ parameters {
   // per-person values
   array[K] vector<offset = person_offset(to_vector(rho_delta), L, centre_delta),
                   multiplier = person_multiplier(sigma_u_delta, L, centre_delta)>[L] u_delta;
-  array[K] vector<offset = person_offset(to_vector(rho_psi), L, centre_psi),
-                  multiplier = person_multiplier(sigma_u_psi, L, centre_psi)>[L] u_psi;
-  array[K, H2] vector<offset = person_offset(fourier_coef, L, centre_direction),
-                      multiplier = person_multiplier(sigma_u_fourier_coef, L, centre_direction)>[L] u_fourier_coef;
+
+  // relative and absolute direction, population and per-person values
+  // (rho_psi, u_psi, fourier_coef, u_fourier_coef: transformed parameters).
+  // Centred (centre_psi / centre_direction = 1): sampled as they are
+  // (centred_*). Otherwise, the default, in sum-to-zero form: for each
+  // condition (and coefficient), with sigma the between-person SD,
+  //   u_l = m + sigma * zt_l      mu = m - sigma * eta / sqrt(L)
+  // zt a sum_to_zero_vector ~ normal(0, 1), eta ~ normal(0, 1). m is the
+  // people's mean, which the data pin down, and eta how far the population
+  // mean mu sits from it. The same model as non-centred u ~ normal(mu,
+  // sigma), but without its ridge (mu trading off against the people's mean
+  // standardised offset), so the population means mix far better (Nov
+  // 2026); and unlike centring, no funnel when sigma is small. Unused sets
+  // have size 0
+  array[centre_psi ? K : 0] real centred_rho_psi;
+  array[centre_psi ? K : 0] vector[L] centred_u_psi;
+  array[centre_psi ? 0 : K] real m_psi;
+  array[centre_psi ? 0 : K] real eta_psi;
+  array[centre_psi ? 0 : K] sum_to_zero_vector[L] zt_psi;
+  matrix[centre_direction ? K : 0, H2] centred_fourier_coef;
+  array[centre_direction ? K : 0, H2] vector[L] centred_u_fourier_coef;
+  matrix[centre_direction ? 0 : K, H2] m_fc;
+  matrix[centre_direction ? 0 : K, H2] eta_fc;
+  array[centre_direction ? 0 : K, H2] sum_to_zero_vector[L] zt_fc;
+
+}
+
+transformed parameters {
+  // relative and absolute direction: population and per-person values
+  // (see their parameters)
+  array[K] real rho_psi;
+  array[K] vector[L] u_psi;
+  matrix[K, H2] fourier_coef;
+  array[K, H2] vector[L] u_fourier_coef;
+  for (k in 1:K) {
+    if (centre_psi) {
+      rho_psi[k] = centred_rho_psi[k];
+      u_psi[k] = centred_u_psi[k];
+    } else {
+      rho_psi[k] = m_psi[k] - sigma_u_psi[k] * eta_psi[k] / sqrt(L);
+      u_psi[k] = m_psi[k] + sigma_u_psi[k] * zt_psi[k];
+    }
+    for (d in 1:H2) {
+      if (centre_direction) {
+        fourier_coef[k, d] = centred_fourier_coef[k, d];
+        u_fourier_coef[k, d] = centred_u_fourier_coef[k, d];
+      } else {
+        fourier_coef[k, d] = m_fc[k, d] - sigma_u_fourier_coef[k, d] * eta_fc[k, d] / sqrt(L);
+        u_fourier_coef[k, d] = m_fc[k, d] + sigma_u_fourier_coef[k, d] * zt_fc[k, d];
+      }
+    }
+  }
 
 }
 
@@ -222,12 +272,22 @@ model {
   // per-person values around the population values (centred or not: see their
   // offset/multiplier)
   for (k in 1:K) u_delta[k] ~ normal(rho_delta[k], sigma_u_delta[k]);
-  for (k in 1:K) u_psi[k] ~ normal(rho_psi[k], sigma_u_psi[k]);
-
-  for (k in 1:K) {
-    for (d in 1:H2) {
-      u_fourier_coef[k, d] ~ normal(fourier_coef[k, d], sigma_u_fourier_coef[k, d]);
-    }
+  // relative and absolute direction: centred, or in sum-to-zero form (the
+  // same model: the change of variables from (mu, u) has a constant Jacobian)
+  if (centre_psi) {
+    for (k in 1:K) u_psi[k] ~ normal(rho_psi[k], sigma_u_psi[k]);
+  } else {
+    eta_psi ~ std_normal();
+    for (k in 1:K) zt_psi[k] ~ std_normal();
+  }
+  if (centre_direction) {
+    for (k in 1:K)
+      for (d in 1:H2)
+        u_fourier_coef[k, d] ~ normal(fourier_coef[k, d], sigma_u_fourier_coef[k, d]);
+  } else {
+    to_vector(eta_fc) ~ std_normal();
+    for (k in 1:K)
+      for (d in 1:H2) zt_fc[k, d] ~ std_normal();
   }
 
   // likelihood, summed over trials in parallel (reduce_sum)

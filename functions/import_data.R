@@ -193,17 +193,21 @@ filter_one_person <- function(d, pp) {
   })
 }
 
-subset_trials <- function(d, trials) {
+subset_trials <- function(d, trials, renumber_people = TRUE) {
 
   # the trials of d (list(stim, found)) listed in `trials` (a table with
   # person, condition and trial columns), with people renumbered 1..L and
   # trials 1..T from one key, so stim and found stay matched (running
   # fix_person_and_trial() on each table separately only lines up if both
-  # keep exactly the same trials). trial_p is left as it was
+  # keep exactly the same trials). trial_p is left as it was.
+  # renumber_people = FALSE keeps d's person numbers, so a person with no
+  # trials in `trials` leaves a gap instead of shifting everyone after them
+  # (kfold_fomo()'s held-out trials, predicted with a fit to all the people)
   key <- trials |>
     distinct(person, condition, trial) |>
     arrange(person, condition, trial) |>
-    mutate(new_person = consecutive_id(person), new_trial = row_number())
+    mutate(new_person = if (renumber_people) consecutive_id(person) else person,
+           new_trial = row_number())
 
   renumber <- function(x) {
     x |>

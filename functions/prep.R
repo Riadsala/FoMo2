@@ -59,7 +59,13 @@ prep_stan_list <- function(stim, sim_params = NULL, found = NULL, priors = NULL,
   # models), e.g. c("delta", "v"). Same model either way; only the
   # sampling geometry changes. Centring suits effects each person's data
   # pin down well, non-centring weakly informed ones (small simulated
-  # datasets may sample better with "none").
+  # datasets may sample better with "none"). In the multi-level Fourier
+  # fit models, psi and direction that aren't centred are sampled in
+  # sum-to-zero form rather than plain non-centred (Nov 2026: the same
+  # model; the population direction means' ESS rose from about 100-200 to
+  # 3000-4000 on K2014, H2024 and C2022); centring them can still be faster where every
+  # between-person SD is large (H2024), but funnels where one is small
+  # (K2014's harmonic 4 cosine).
   #
   # symmetric_v = TRUE (cat items, multi-level Fourier fits only, so far)
   # selects cat_sym.stan: each condition's transition matrix has one

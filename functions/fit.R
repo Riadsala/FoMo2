@@ -39,20 +39,26 @@ fit_fomo <- function(sl, iter = 500, chains = 4, filename = "tmp",
   # Caveat: init_near_prior()'s jitter is small, so chains start close
   # together and R-hat, which relies on spread-out starts, may miss some
   # non-convergence
+  own_init <- pathfinder_init || identical(init, "prior")
   if (identical(init, "prior") && !pathfinder_init) init <- init_near_prior(mod, sl, chains, seed)
   if (pathfinder_init) {
     pf <- mod$pathfinder(data = sl, num_threads = threads_per_chain, seed = seed)
     init <- pathfinder_inits(pf, mod, chains, seed)
   }
 
-  m <- mod$sample(data = sl,
-                  iter_warmup = iter,
-                  iter_sampling = iter,
-                  chains = chains,
-                  threads_per_chain = threads_per_chain,
-                  init = init,
-                  seed = seed,
-                  ...)
+  # our own starting values cover every parameter except size-0 ones (a
+  # switched-off option's, e.g. the centred direction parameters when the
+  # default sum-to-zero form is used), which need none: cmdstanr would
+  # warn about those on every fit
+  m <- withr::with_options(list(cmdstanr_warn_inits = if (own_init) FALSE else getOption("cmdstanr_warn_inits", TRUE)),
+    mod$sample(data = sl,
+               iter_warmup = iter,
+               iter_sampling = iter,
+               chains = chains,
+               threads_per_chain = threads_per_chain,
+               init = init,
+               seed = seed,
+               ...))
 
   # centring per-person effects (prep_stan_list(centred_params = ), the
   # default for multi-level fits) suits lots of data per person; with
@@ -97,8 +103,82 @@ fit_fomo <- function(sl, iter = 500, chains = 4, filename = "tmp",
 # parameter, recomputed exactly from them
 parameter_draws <- function(fit, mod, sl) {
   sizes <- fit$metadata()$stan_variable_sizes
-  pars <- keep(names(mod$variables()$parameters), \(p) prod(sizes[[p]] %||% 0) > 0)
-  posterior::as_draws_matrix(fit$draws(variables = pars))
+  model_pars <- names(mod$variables()$parameters)
+  pars <- keep(model_pars, \(p) prod(sizes[[p]] %||% 0) > 0)
+  draws <- posterior::as_draws_matrix(fit$draws(variables = pars))
+  # a multi-level Fourier fit from before the sum-to-zero form (Nov 2026),
+  # whose direction parameters were rho_psi, u_psi, fourier_coef and
+  # u_fourier_coef: the current model's parameters for them, from those
+  old_direction <- !is.null(sizes$u_psi) && is.null(sizes$m_psi) && is.null(sizes$centred_rho_psi)
+  if ("m_psi" %in% model_pars && old_direction) {
+    draws <- posterior::bind_draws(draws, direction_parameters(fit, sl), along = "variable")
+    # in CmdStan's order, which generated quantities check: parameters as
+    # declared, each one's elements column-major (first index fastest)
+    vars <- posterior::variables(draws)
+    base <- str_remove(vars, "\\[.*")
+    idx <- str_split(coalesce(str_match(vars, "\\[(.*)\\]")[, 2], ""), ",")
+    depth <- max(lengths(idx))
+    keys <- map(rev(seq_len(depth)), \(j) map_int(idx, \(x) coalesce(as.integer(x[j]), 0L)))
+    draws <- posterior::subset_draws(draws, variable = vars[do.call(order, c(list(match(base, model_pars)), keys))])
+  }
+  recentre_sum_to_zero(draws)
+}
+
+# Sum-to-zero vectors (zt_*, the multi-level Fourier fits' direction
+# parameters) re-centred to sum to zero to double precision. CmdStan writes
+# draws to 6 significant figures, after which a vector can sum to 1e-7, and
+# Stan refuses it (tolerance 1e-8) when generated quantities read it back.
+# The change, about 1e-8, is the size of that rounding
+recentre_sum_to_zero <- function(draws) {
+  cols <- str_subset(posterior::variables(draws), "^zt_\\w+\\[")
+  if (length(cols) == 0) return(draws)
+  # one vector per index without its last (person) position
+  vec <- str_remove(cols, ",\\d+\\]$")
+  for (v in unique(vec)) {
+    i <- cols[vec == v]
+    x <- unclass(draws[, i])
+    draws[, i] <- x - rowMeans(x)
+  }
+  draws
+}
+
+# The multi-level Fourier fit models' relative and absolute direction
+# parameters (centred_* when centred, else the sum-to-zero m_*, eta_*,
+# zt_*: see the models), from the draws of a fit that sampled rho_psi,
+# u_psi, fourier_coef and u_fourier_coef directly (before Nov 2026). Exact:
+# the people's mean m = mean(u), zt = (u - m) / sigma, eta = sqrt(L) *
+# (m - mu) / sigma, which the models turn back into the same mu and u
+direction_parameters <- function(fit, sl) {
+  L <- sl$L
+  one_group <- function(mu, u, sigma, short, centred) {
+    d <- as_tibble(posterior::as_draws_df(fit$draws(variables = c(mu, u, sigma))))
+    mu_cols <- str_subset(names(d), paste0("^", mu, "\\["))
+    if (centred) {
+      # sampled as they are, under the centred names
+      out <- d[c(mu_cols, str_subset(names(d), paste0("^", u, "\\[")))]
+      names(out) <- paste0("centred_", names(out))
+      return(out)
+    }
+    out <- list()
+    for (col in mu_cols) {
+      idx <- str_match(col, "\\[(.*)\\]")[, 2]     # "k", or "k,d"
+      U <- as.matrix(d[paste0(u, "[", idx, ",", seq_len(L), "]")])
+      s <- d[[paste0(sigma, "[", idx, "]")]]
+      m <- rowMeans(U)
+      zt <- (U - m) / s
+      zt <- zt - rowMeans(zt)                       # sums to zero to rounding
+      out[[paste0("m_", short, "[", idx, "]")]] <- m
+      out[[paste0("eta_", short, "[", idx, "]")]] <- sqrt(L) * (m - d[[col]]) / s
+      for (l in seq_len(L)) out[[paste0("zt_", short, "[", idx, ",", l, "]")]] <- zt[, l]
+    }
+    as_tibble(out)
+  }
+  psi <- one_group("rho_psi", "u_psi", "sigma_u_psi", "psi", isTRUE(sl$centre_psi == 1))
+  fc <- one_group("fourier_coef", "u_fourier_coef", "sigma_u_fourier_coef", "fc",
+                  isTRUE(sl$centre_direction == 1))
+  # the fit's chain, iteration and draw numbers, so bind_draws() lines them up
+  ids <- as_tibble(posterior::as_draws_df(fit$draws(variables = "rho_psi")))[c(".chain", ".iteration", ".draw")]
+  posterior::as_draws_matrix(posterior::as_draws_df(bind_cols(psi, fc, ids)))
 }
 
 # f() with its standard output captured (cmdstanr's progress lines);
@@ -153,15 +233,25 @@ STAN_LIST_DATA <- c("N", "T", "z", "s", "X", "x", "y", "v", "Y", "trial", "new_t
 # existing data list: sl with its data entries replaced by d's. Used to
 # refit or predict a model on part of its data (kfold_fomo()) without
 # knowing the prep_stan_list() arguments that made it. d must hold the same
-# people, numbered the same way, and conditions (K and L are kept): a person
-# missing from d would leave the others' numbers pointing at the wrong
-# person's effects
-prep_stan_list_like <- function(sl, d) {
+# conditions, and people numbered as in sl (K and L are kept): a person
+# renumbered in d would point at the wrong person's effects. all_people =
+# TRUE: d must hold every person of sl (a missing person usually means
+# renumbered people); FALSE: d may leave people out, as long as the rest
+# keep sl's numbers (subset_trials(renumber_people = FALSE); kfold_fomo()'s
+# held-out trials). The models are fine with people who have no trials
+prep_stan_list_like <- function(sl, d, all_people = TRUE) {
   stopifnot("sl has no data: make it with prep_stan_list(stim, found = )" = !is.null(sl$Y))
-  new <- suppressMessages(prep_stan_list(d$stim, found = d$found, xy_scaling = sl$xy_scaling %||% 10))
-  stopifnot("d has other conditions than sl" = new$K == sl$K,
+  people <- sort(unique(d$stim$person))
+  stopifnot("d's people must be numbered within 1..L of sl" = all(people %in% seq_len(sl$L)),
             "d must hold every person of sl (people numbered 1..L as in sl)" =
-              new$L == sl$L && n_distinct(d$stim$person) == sl$L)
+              !all_people || length(people) == sl$L)
+  # prep_stan_list() wants people 1..n with no gaps: number d's people
+  # consecutively for it, then point the trials (z) back at sl's people
+  consecutive <- \(x) mutate(x, person = match(person, people))
+  new <- suppressMessages(prep_stan_list(consecutive(d$stim), found = consecutive(d$found),
+                                         xy_scaling = sl$xy_scaling %||% 10))
+  new$z <- people[new$z]
+  stopifnot("d has other conditions than sl" = new$K == sl$K)
   data <- intersect(STAN_LIST_DATA, names(new))   # v only with item features
   sl[data] <- new[data]
   sl
@@ -170,9 +260,12 @@ prep_stan_list_like <- function(sl, d) {
 # K-fold cross-validation: the fallback for comparing models when loo's
 # Pareto k diagnostics are poor (fomo_compare(kfold_cv = K) runs it for
 # every model). Each stratum's trials (by default each person x condition)
-# are dealt round the K folds in turn, so every fold holds every person and
-# condition, and held-out trials are predicted with their person's own
-# fitted effects (prediction of a known person's new trials). For each
+# are dealt round the K folds in turn (in trial order), and held-out trials
+# are predicted with their person's own fitted effects (prediction of a
+# known person's new trials). Each stratum needs at least 2 trials, so that
+# every training set holds it. A stratum with fewer than K trials is held
+# out in only some folds (e.g. K = 10 with 8 trials: none in folds 9 and
+# 10); every trial is still held out exactly once. For each
 # fold: fit_fomo() on the other folds (save_selections = FALSE), then
 # predict_fomo() with every draw on the held-out trials, whose per-trial
 # log_lik give each trial's elpd. So K folds cost K fits.
@@ -209,34 +302,65 @@ kfold_fomo <- function(d, K = 3, sl = NULL, prep_args = list(), strata = c("pers
     distinct(person, condition, trial) |>
     arrange(person, condition, trial) |>
     mutate(fold = (row_number() - 1) %% K + 1, .by = all_of(strata))
-  short <- folds |> count(across(all_of(strata))) |> filter(n < K)
-  if (nrow(short) > 0) {
-    stop("kfold_fomo(): ", nrow(short), " ", paste(strata, collapse = " x "),
-         " cells have fewer than K = ", K, " trials, so some fold would miss them; use a smaller K",
+  cells <- folds |> count(across(all_of(strata)))
+  cell_name <- paste(strata, collapse = " x ")
+  if (any(cells$n < 2)) {
+    stop("kfold_fomo(): ", sum(cells$n < 2), " ", cell_name, " cells have only 1 trial, so the ",
+         "fold holding it would have none of it to fit; drop them or use strata = \"person\"",
          call. = FALSE)
   }
+  if (max(cells$n) < K) {
+    stop("kfold_fomo(): K = ", K, " but no ", cell_name, " cell has more than ", max(cells$n),
+         " trials, so fold ", K, " would be empty; use a smaller K", call. = FALSE)
+  }
+  # people keep their numbers in every fold (held-out folds may miss some),
+  # so they must be 1..L as import_data() gives
+  n_people <- n_distinct(folds$person)
+  if (!setequal(folds$person, seq_len(n_people))) {
+    stop("kfold_fomo(): people must be numbered 1..", n_people, " (as import_data() does)",
+         call. = FALSE)
+  }
+  # each held-out fold's people: a multi-level model needs at least 2 (with
+  # 1, predict_fomo() would choose the single-level model)
+  thin <- folds |> summarise(people = n_distinct(person), .by = fold) |> filter(people < 2)
+  if (n_people > 1 && nrow(thin) > 0) {
+    stop("kfold_fomo(): fold(s) ", paste(sort(thin$fold), collapse = ", "), " would hold out ",
+         "trials of only 1 person; use a smaller K", call. = FALSE)
+  }
 
-  # each fold's data list: sl's settings (sl given) or prep_args
+  say <- function(...) if (!quiet) message(...)
+  run <- function(f) if (quiet) suppressMessages(run_quietly(f)) else f()
+  short <- cells |> filter(n < K)
+  if (nrow(short) > 0) {
+    say("kfold_fomo(): ", nrow(short), " of ", nrow(cells), " ", cell_name, " cells have fewer ",
+        "than K = ", K, " trials (fewest ", min(short$n), "), so they are held out in only some folds")
+  }
+
+  # each fold's training data list: sl's settings (sl given) or prep_args;
+  # only the held-out trials' log_lik is needed, not P, W and loglik
   prep <- function(x) {
     out <- if (!is.null(sl)) prep_stan_list_like(sl, x) else
       suppressMessages(do.call(prep_stan_list, c(list(x$stim, found = x$found), prep_args)))
-    # only the held-out trials' log_lik is needed, not P, W and loglik
     out$save_selections <- 0L
     out
   }
-  say <- function(...) if (!quiet) message(...)
-  run <- function(f) if (quiet) suppressMessages(run_quietly(f)) else f()
 
   ll <- list(); fits <- list()
   for (k in seq_len(K)) {
     say("kfold_fomo(): fold ", k, " of ", K, " (", format(Sys.time(), "%H:%M"), ")")
     held_out <- filter(folds, fold == k)
-    train <- subset_trials(d, filter(folds, fold != k))
-    test  <- subset_trials(d, held_out)
+    # people keep their numbers: every training set holds every person (each
+    # cell has 2+ trials), but a held-out fold may miss some
+    train <- subset_trials(d, filter(folds, fold != k), renumber_people = FALSE)
+    test  <- subset_trials(d, held_out, renumber_people = FALSE)
 
     t0 <- Sys.time()
-    fit <- run(\() fit_fomo(prep(train), filename = paste0(filename, "_fold", k), save_dir = save_dir, ...))
-    pred <- run(\() predict_fomo(fit, prep(test), n_draws = .Machine$integer.max, selections = FALSE))
+    sl_train <- prep(train)
+    stopifnot("a training set misses a person" = n_distinct(train$stim$person) == n_people)
+    fit <- run(\() fit_fomo(sl_train, filename = paste0(filename, "_fold", k), save_dir = save_dir, ...))
+    # the held-out trials with the training data list's settings and people
+    sl_test <- prep_stan_list_like(sl_train, test, all_people = FALSE)
+    pred <- run(\() predict_fomo(fit, sl_test, n_draws = .Machine$integer.max, selections = FALSE))
 
     # subset_trials() numbers the held-out trials in (person, condition,
     # trial) order, as held_out is sorted: map them back to the originals
@@ -293,6 +417,19 @@ init_near_prior <- function(mod, sl, chains, seed = NULL) {
         u_log_theta = jitter(sl$log_theta_mu, d, 0.1),
         u_fourier_coef = jitter(sl$fourier_coef_mu, d, 0.05),
         u_logit_v = jitter(0, d, 0.1),
+        # multi-level Fourier fits: relative and absolute direction, centred
+        # (centred_*) or in sum-to-zero form (m_*, eta_*, zt_*). zt must sum
+        # to zero over people, so it starts at 0 (everyone at m)
+        centred_rho_psi = jitter(sl$rho_psi_mu, d, 0.1),
+        centred_u_psi = jitter(sl$rho_psi_mu, d, 0.1),
+        centred_fourier_coef = jitter(sl$fourier_coef_mu, d, 0.05),
+        centred_u_fourier_coef = jitter(sl$fourier_coef_mu, d, 0.05),
+        m_psi = jitter(sl$rho_psi_mu, d, 0.1),
+        m_fc = jitter(sl$fourier_coef_mu, d, 0.05),
+        eta_psi = jitter(0, d, 0.1),
+        eta_fc = jitter(0, d, 0.1),
+        zt_psi = array(0, dim = d),
+        zt_fc = array(0, dim = d),
         # cat_sym.stan: the stay log-odds
         b_stay = jitter(0, d, 0.1),
         u_stay = jitter(0, d, 0.1),
