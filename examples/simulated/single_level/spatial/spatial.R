@@ -30,9 +30,9 @@ simparams <- list(
   rho_delta_mu = c(0.75, 1.50),
   rho_psi_mu = c(-1, 1),
   # condition one: the four cardinal directions (h4); two: rightwards (h1)
-  #                     h1: a, b   h2: a, b   h4: a, b
-  fourier_coef_mu = rbind(c(0,   0,   0, 0,    0.8, 0),
-                          c(1.5, 0,   0, 0,    0,   0)))
+  #                     h1: a, b   h2: a, b   h4: a (cos only)
+  fourier_coef_mu = rbind(c(0,   0,   0, 0,    0.8),
+                          c(1.5, 0,   0, 0,    0)))
 
 
 ## ---- sim_stan_list

@@ -18,7 +18,7 @@
 //
 // Each selection is a categorical choice among the items left, with
 // log-weights from distance (rho_delta), absolute direction (fourier_coef:
-// {cos, sin} pairs per harmonic) and relative direction (rho_psi), plus the
+// {cos, sin} per harmonic, or cos only) and relative direction (rho_psi), plus the
 // item's class through the class-transition matrix b_v (row c: the next
 // class after class c). A trial's first selection has class weights only
 // (first_item_weight()): the stationary distribution of b_v.
@@ -150,17 +150,22 @@ data {
   // sizes)
   int<lower = 1> n_harmonics;
   array[n_harmonics] int harmonics;
+  // 1: the harmonic's sine term is fitted, 0: cosine only
+  // (prep_stan_list(cos_only)); n_coef: the number of coefficients,
+  // n_harmonics + sum(has_sin)
+  array[n_harmonics] int<lower = 0, upper = 1> has_sin;
+  int<lower = 1> n_coef;
   vector[K] dir_offset; // absolute-direction offset per condition (radians)
 
   // priors: absolute direction
-  matrix[K, 2 * n_harmonics] fourier_coef_mu;
-  vector[2 * n_harmonics] fourier_coef_sd;
+  matrix[K, n_coef] fourier_coef_mu;
+  vector[n_coef] fourier_coef_sd;
 
   // priors: between-person SDs
   real<lower = 0> sd_v_lambda;
   vector<lower = 0>[K] sd_delta_lambda;
   vector<lower = 0>[K] sd_psi_lambda;
-  vector<lower = 0>[2 * n_harmonics] sd_fourier_coef_lambda;
+  vector<lower = 0>[n_coef] sd_fourier_coef_lambda;
 
   // per-person effects centred (1) or not (0): prep_stan_list(centred_params)
   int<lower = 0, upper = 1> centre_delta;
@@ -178,7 +183,8 @@ transformed data {
   // P, W and loglik have size 0 unless save_selections
   int Ns_out = save_selections ? Ns : 0;
 
-  int H2 = 2 * n_harmonics; // width of fourier_coef (2 per harmonic)
+  int H2 = n_coef; // width of fourier_coef: cos (and sin) per harmonic
+  if (n_coef != fourier_n_coef(has_sin)) reject("n_coef must be n_harmonics + sum(has_sin)");
   int D = H2 + 2; // rows of F: distance, Fourier basis, turning angle
 
   // start of each trial's items (cumulative s) and selections (cumulative f)
@@ -222,7 +228,7 @@ transformed data {
     matrix[Ns, max(s)] psi   = compute_psi(Ns, Y, s, trial, x, y, new_trl_flag, trial_start_idx);
     // Fourier basis for every selection, once
     array[Ns] matrix[H2, max(s)] basis =
-      compute_fourier_basis_by_cond(Ns, s, trial, X, phi, harmonics, dir_offset);
+      compute_fourier_basis_by_cond(Ns, s, trial, X, phi, harmonics, has_sin, dir_offset);
 
     // each column's selection and item
     array[M, 2] int cols = flat_cols(s, f, T, 2, avail_order, M);
@@ -376,7 +382,9 @@ generated quantities {
 
   // for extract_post()
   vector[K] directional_offset = dir_offset;
-  array[n_harmonics] int fourier_harmonics = harmonics; // labels fourier_coef's pairs (extract_fourier())
+  // label fourier_coef's columns (extract_fourier())
+  array[n_harmonics] int fourier_harmonics = harmonics;
+  array[n_harmonics] int fourier_has_sin = has_sin;
 
   // log-likelihood and predictions
 

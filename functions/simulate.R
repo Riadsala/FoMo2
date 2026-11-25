@@ -93,6 +93,7 @@ generate_stim <- function(spec, n_trials = 1, n_people = 1, cond_labels = NULL) 
 
 sim_fomo <- function(sl, fit = NA, iter = 500, chains = 1) {
 
+  sl <- complete_stan_list(sl)
   mod <- load_stan_model(sl, model_task = "simulate")
 
   if (!inherits(fit, "CmdStanMCMC")) {

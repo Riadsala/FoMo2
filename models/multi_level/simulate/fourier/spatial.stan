@@ -2,7 +2,7 @@
 //
 // Each selection is a categorical choice among the items left, with
 // log-weights from distance (rho_delta), absolute direction (fourier_coef:
-// {cos, sin} pairs per harmonic) and relative direction (rho_psi).
+// {cos, sin} per harmonic, or cos only) and relative direction (rho_psi).
 //
 // Multi-level: per-person effects on every term (always non-centred here).
 //
@@ -43,20 +43,26 @@ data {
   // sizes)
   int<lower = 1> n_harmonics;
   array[n_harmonics] int harmonics;
+  // 1: the harmonic's sine term is fitted, 0: cosine only
+  // (prep_stan_list(cos_only)); n_coef: the number of coefficients,
+  // n_harmonics + sum(has_sin)
+  array[n_harmonics] int<lower = 0, upper = 1> has_sin;
+  int<lower = 1> n_coef;
   vector[K] dir_offset; // absolute-direction offset per condition (radians)
 
   // absolute direction
-  matrix[K, 2 * n_harmonics] fourier_coef_mu;
-  vector[2 * n_harmonics] fourier_coef_sd;
+  matrix[K, n_coef] fourier_coef_mu;
+  vector[n_coef] fourier_coef_sd;
 
   // priors: between-person SDs
   vector<lower = 0>[K] sd_delta_lambda;
   vector<lower = 0>[K] sd_psi_lambda;
-  vector<lower = 0>[2 * n_harmonics] sd_fourier_coef_lambda;
+  vector<lower = 0>[n_coef] sd_fourier_coef_lambda;
 }
 
 transformed data {
-  int H2 = 2 * n_harmonics; // width of fourier_coef (2 per harmonic)
+  int H2 = n_coef; // width of fourier_coef: cos (and sin) per harmonic
+  if (n_coef != fourier_n_coef(has_sin)) reject("n_coef must be n_harmonics + sum(has_sin)");
 
 }
 
@@ -116,7 +122,9 @@ generated quantities {
 
   // for extract_post()
   vector[K] directional_offset = dir_offset;
-  array[n_harmonics] int fourier_harmonics = harmonics; // labels fourier_coef's pairs (extract_fourier())
+  // label fourier_coef's columns (extract_fourier())
+  array[n_harmonics] int fourier_harmonics = harmonics;
+  array[n_harmonics] int fourier_has_sin = has_sin;
 
   {
     int pos = 1;
@@ -138,7 +146,7 @@ generated quantities {
       for (i in 1:nt) {
         delta[i,] = to_row_vector(sqrt((xt - xt[i])^2 + (yt - yt[i])^2));
         phi[i,] =   to_row_vector(atan2((yt - yt[i]), (xt - xt[i])));
-        basis[i] = compute_fourier_basis_row(phi[i,], harmonics, dir_offset[k], nt);
+        basis[i] = compute_fourier_basis_row(phi[i,], harmonics, has_sin, dir_offset[k], nt);
       }
 
       // this person's values

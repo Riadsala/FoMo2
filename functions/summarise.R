@@ -176,20 +176,23 @@ styled_summary_table <- function(table) {
 label_components <- function(summary, fit) {
 
   # summarise_fit()'s index as a component for the printed tables: Fourier
-  # coefficients as h1 cos, h1 sin, ... (from the fit's harmonics); von
+  # coefficients as h1 cos, h1 sin, ... (from the fit's fourier_terms()); von
   # Mises components by preferred direction (before the condition's
   # offset, as direction_labels()); anything else as the index itself
   is_fourier <- str_detect(summary$parameter, "fourier_coef")
   is_theta <- str_detect(summary$parameter, "theta")
   j <- suppressWarnings(as.integer(summary$index))
 
-  harmonics <- if (any(is_fourier)) as.integer(posterior::as_draws_matrix(fit$draws("fourier_harmonics"))[1, ])
-  pair <- paste0("h", harmonics[(j + 1) %/% 2])
+  fourier_labels <- if (any(is_fourier)) {
+    with(get_fourier_terms(fit, fit_variables(fit)), paste(harmonic, term))
+  } else {
+    character()
+  }
   n_dircomps <- if (any(is_theta)) max(j[is_theta], na.rm = TRUE) else 1
 
   summary |>
     mutate(component = case_when(
-      is_fourier & !is.na(j) ~ paste(pair, if_else(j %% 2 == 1, "cos", "sin")),
+      is_fourier & !is.na(j) ~ fourier_labels[pmax(j, 1)],
       is_theta & !is.na(j) ~ direction_labels(n_dircomps)[pmax(j, 1)],
       .default = index))
 }
@@ -332,11 +335,13 @@ compute_directional_curve <- function(post, n_angles = 181, draws = NULL, centre
       preferred_direction <- 2 * pi * (seq_len(n_dir) - 1) / n_dir + d$offset[1]
       basis <- t(outer(angles, preferred_direction, vonmises_density, kappa = FOMO_KAPPA))
     } else {
-      harmonics <- parse_number(levels(d$harmonic))
-      # components in fourier_coef's order: {cos, sin} for each harmonic
-      d <- mutate(d, component = 2 * as.integer(harmonic) - (term == "cos"))
+      # one component per coefficient the fit has (cos only for cos_only
+      # harmonics), with its basis row cos(h a) or sin(h a)
+      terms <- distinct(d, harmonic, term) |> arrange(harmonic, term) |> mutate(component = row_number())
+      d <- left_join(d, terms, by = c("harmonic", "term"))
       a <- angles - d$offset[1]
-      basis <- do.call(rbind, lapply(harmonics, \(h) rbind(cos(h * a), sin(h * a))))
+      h <- parse_number(as.character(terms$harmonic))
+      basis <- t(sapply(seq_len(nrow(terms)), \(r) if (terms$term[r] == "cos") cos(h[r] * a) else sin(h[r] * a)))
     }
     weights <- d |>
       select(.draw, component, value) |>
@@ -562,11 +567,12 @@ groundtruth_as_post <- function(groundtruth, post) {
   }
 
   if (!is.null(post$fourier) && !is.null(groundtruth$fourier_coef_mu)) {
-    harmonics <- parse_number(levels(post$fourier$harmonic))
-    coef <- expand_mat(groundtruth$fourier_coef_mu, n_cond, 2 * length(harmonics), "fourier_coef_mu")
+    # the fit's coefficients, in fourier_coef's order (fourier_terms())
+    terms <- distinct(post$fourier, harmonic, term) |> arrange(harmonic, term) |> mutate(j = row_number())
+    coef <- expand_mat(groundtruth$fourier_coef_mu, n_cond, nrow(terms), "fourier_coef_mu")
     truth$fourier <- expand_grid(condition = seq_len(n_cond), j = seq_len(ncol(coef))) |>
       mutate(value = coef[cbind(condition, j)]) |>
-      label_fourier_coef(harmonics) |>
+      label_fourier_coef(terms) |>
       mutate(condition = label_condition(condition, cond_labels)) |>
       left_join(offsets, by = "condition") |>
       select(condition, harmonic, term, value, offset) |>

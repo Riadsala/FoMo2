@@ -37,7 +37,7 @@ found_vm <- extract_pred(sim_vm, stim)
 sl_sim_f <- prep_stan_list(stim, 
                            list(rho_delta_mu = 2.50, 
                                 rho_psi_mu = -2.12,
-                                fourier_coef_mu = rbind(c(0.27, 0.04, -0.45, 0.19, 0.16, -0.04))),
+                                fourier_coef_mu = rbind(c(0.27, 0.04, -0.45, 0.19, 0.16))),
                            directional_model = "fourier")
 sim_f <- sim_fomo(sl_sim_f, iter = 1, chains = 1)
 found_f <- extract_pred(sim_f, stim)

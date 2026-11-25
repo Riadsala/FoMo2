@@ -12,7 +12,7 @@ FOMO_CENTRED_DEFAULT <- c("delta", "v")
 prep_stan_list <- function(stim, sim_params = NULL, found = NULL, priors = NULL,
                            xy_scaling = 10, directional_model = "fourier",
                            kappa = FOMO_KAPPA, n_dircomps = 4, dir_offset = 0,
-                           harmonics = c(1, 2, 4), centred_params = "default",
+                           harmonics = c(1, 2, 4), cos_only = intersect(4, harmonics), centred_params = "default",
                            symmetric_v = FALSE, save_selections = FALSE) {
 
   # Builds the data list for fit_fomo() and sim_fomo(). Three uses:
@@ -36,9 +36,21 @@ prep_stan_list <- function(stim, sim_params = NULL, found = NULL, priors = NULL,
   # so the *_sd entries default to 0.01, which pins it to mu.
   #
   # directional_model defaults to "fourier", with harmonics c(1, 2, 4),
-  # Fourier-124: it beat von Mises (the papers' model) and Fourier-12 on
+  # Fourier-124 (harmonic 4 cosine only: see cos_only): it beat von Mises (the papers' model) and Fourier-12 on
   # loo on every real dataset (examples/real_data/model_comparison/), and
   # fitted faster than von Mises.
+  #
+  # cos_only (Fourier only): harmonics whose sine term is left out, so they
+  # have a cosine coefficient only. Default: harmonic 4 (if fitted), so
+  # Fourier-124 has 5 coefficients: h1 cos, h1 sin, h2 cos, h2 sin, h4 cos.
+  # Harmonic 4's cosine is the preference for the screen's axes over its
+  # diagonals; its sine would be that pattern rotated by 22.5 degrees,
+  # which nothing predicts: its estimates were about 0 on every real
+  # dataset, and on K2014 and H2024 leaving it out made no difference to
+  # loo (Nov 2026). cos_only = NULL keeps every sine term (as fits from
+  # before Nov 2026 have). The sine term of harmonic h is relative to
+  # dir_offset. sim_params$fourier_coef_mu has one value per coefficient,
+  # in that order.
   #
   # centred_params (multi-level models only): which groups of per-person
   # effects are sampled centred rather than non-centred: "default"
@@ -117,7 +129,16 @@ prep_stan_list <- function(stim, sim_params = NULL, found = NULL, priors = NULL,
   ########################################################################
   # priors, or the values to simulate from
 
-  dims <- list(K = K, n_dircomps = n_dircomps, n_coef = 2 * length(harmonics),
+  # cos_only: the default (harmonic 4) applies to Fourier models only
+  if (directional_model == "von_mises") {
+    if (!missing(cos_only) && length(cos_only) > 0) stop("cos_only is for the Fourier directional model")
+    cos_only <- NULL
+  }
+  stopifnot("cos_only must be harmonics that are fitted" = all(cos_only %in% harmonics))
+  # per harmonic: 1 if its sine term is fitted (see cos_only)
+  has_sin <- as.integer(!(harmonics %in% cos_only))
+  dims <- list(K = K, n_dircomps = n_dircomps, n_coef = length(harmonics) + sum(has_sin),
+               has_sin = has_sin, harmonics = harmonics,
                n_classes = stanlist$n_classes,
                multi_level = length(unique(stim$person)) > 1)
   if (symmetric_v) {
@@ -150,6 +171,8 @@ prep_stan_list <- function(stim, sim_params = NULL, found = NULL, priors = NULL,
     # `array[n_harmonics] int harmonics`
     stanlist <- append(stanlist, list(n_harmonics = length(harmonics),
                                       harmonics = as.array(as.integer(harmonics)),
+                                      has_sin = as.array(has_sin),
+                                      n_coef = dims$n_coef,
                                       dir_offset = dir_offset))
   }
 
@@ -210,11 +233,12 @@ default_prior_list <- function(dp, dims, directional_model, harmonics, item_feat
       log_theta_sd = dp$log_theta_sd,
       sd_log_theta_lambda = rep(dp$sd_log_theta_lambda, dims$n_dircomps)))
   } else {
-    # {cos, sin} coefficients per harmonic, mean 0 (no preferred direction)
+    # {cos, sin} coefficients per harmonic (cos only for cos_only), mean 0
+    # (no preferred direction)
     pr <- append(pr, list(
       fourier_coef_mu = matrix(0, nrow = K, ncol = dims$n_coef),
-      fourier_coef_sd = get_fourier_coef_sd(harmonics, dp),
-      sd_fourier_coef_lambda = get_fourier_coef_sd(harmonics, dp, "_sd_lambda")))
+      fourier_coef_sd = get_fourier_coef_sd(harmonics, dp, has_sin = dims$has_sin),
+      sd_fourier_coef_lambda = get_fourier_coef_sd(harmonics, dp, "_sd_lambda", dims$has_sin)))
   }
 
   if (item_features == "cat") {
@@ -284,6 +308,18 @@ set_sim_params <- function(pr, sp, dims, directional_model, item_features) {
     pr$log_theta_mu <- expand_mat(pick("log_theta_mu", pr$log_theta_mu), K, dims$n_dircomps, "log_theta_mu")
     pr$log_theta_sd <- pin("log_theta_sd")
   } else {
+    # a {cos, sin} pair per harmonic, when some are cos_only (by default
+    # harmonic 4): say so, rather than expand_mat()'s generic error
+    fc_mu <- sp$fourier_coef_mu
+    n_given <- if (is.matrix(fc_mu)) ncol(fc_mu) else length(fc_mu)
+    n_pairs <- 2 * length(dims$has_sin)
+    if (!is.null(fc_mu) && dims$n_coef < n_pairs && n_given == n_pairs) {
+      stop("sim_params$fourier_coef_mu has a {cos, sin} pair for every harmonic, but harmonic ",
+           paste(dims$harmonics[dims$has_sin == 0], collapse = ", "),
+           " is cos_only (by default harmonic 4 is), so the model has ", dims$n_coef,
+           " coefficients: leave out the sine values of the cos_only harmonics, or pass cos_only = NULL",
+           call. = FALSE)
+    }
     pr$fourier_coef_mu <- expand_mat(pick("fourier_coef_mu", pr$fourier_coef_mu), K, dims$n_coef, "fourier_coef_mu")
     pr$fourier_coef_sd <- expand_vec(pin("fourier_coef_sd"), dims$n_coef, "fourier_coef_sd")
   }
@@ -317,7 +353,8 @@ set_sim_params <- function(pr, sp, dims, directional_model, item_features) {
                                          "sd_lambda$log_theta")
   } else {
     fc <- lam("fourier_coef", pr$sd_fourier_coef_lambda)
-    if (length(fc) == dims$n_coef / 2) fc <- rep(fc, each = 2)  # one per harmonic
+    # one per harmonic: to each of its coefficients
+    if (length(fc) == length(dims$has_sin)) fc <- rep(fc, times = 1 + dims$has_sin)
     pr$sd_fourier_coef_lambda <- expand_vec(fc, dims$n_coef, "sd_lambda$fourier_coef")
   }
   if (item_features == "cat") {
@@ -353,13 +390,14 @@ expand_mat <- function(x, nr, nc, name) {
   stop(name, " must be a single value, one row of ", nc, " values, or a ", nr, " x ", nc, " matrix")
 }
 
-get_fourier_coef_sd <- function(harmonics, dp, suffix = "_sd") {
+get_fourier_coef_sd <- function(harmonics, dp, suffix = "_sd", has_sin = rep(1L, length(harmonics))) {
   # Looks up each requested harmonic's default prior value
   # (fourier_h<k><suffix> in default_priors.csv: "_sd" for the coefficient
-  # SD, "_sd_lambda" for the random-effect scale) and expands it to a
-  # length-2*length(harmonics) vector - cos and sin share the same value
-  # within a harmonic, since a normal(0, sigma) prior on both is what gives
-  # the rotation-invariant (phase-free) amplitude distribution.
+  # SD, "_sd_lambda" for the random-effect scale) and expands it to one
+  # value per coefficient (cos, and sin where has_sin) - cos and sin share
+  # the same value within a harmonic, since a normal(0, sigma) prior on
+  # both is what gives the rotation-invariant (phase-free) amplitude
+  # distribution.
   fields <- paste0("fourier_h", harmonics, suffix)
   missing <- harmonics[!(fields %in% names(dp))]
   if (length(missing) > 0) {
@@ -367,7 +405,7 @@ get_fourier_coef_sd <- function(harmonics, dp, suffix = "_sd") {
          " (default_priors.csv has 1, 2 and 4): pass it in priors, e.g. priors = list(",
          "fourier_h", missing[1], "_sd = 0.4, fourier_h", missing[1], "_sd_lambda = 8)")
   }
-  rep(as.numeric(unlist(dp[fields])), each = 2)
+  rep(as.numeric(unlist(dp[fields])), times = 1 + has_sin)
 }
 
 read_default_priors <- function(overrides = NULL) {

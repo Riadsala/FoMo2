@@ -29,7 +29,9 @@ item; they differ in which shapes that term can take.
 - **Fourier** (`directional_model = "fourier"`, the default): a Fourier
   series in the angle, with a {cos, sin} coefficient pair per harmonic.
   Harmonic 1 gives one preferred direction, harmonic 2 a preferred axis,
-  harmonic 4 a four-fold pattern. Fourier-124 (harmonics 1, 2 and 4) can
+  harmonic 4 a four-fold pattern: by default its cosine only
+  (`prep_stan_list(cos_only = 4)`), so the four directions are the
+  screen's axes rather than a pattern rotated off them. Fourier-124 (harmonics 1, 2 and 4) can
   put a peak in any direction, but only smooth ones.
 
 We simulate one person twice, once from each model, with realistic

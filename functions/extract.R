@@ -140,30 +140,48 @@ get_fourier_harmonics <- function(fit, vars) {
   as.integer(get_draws(fit, vars_h)[1, vars_h])
 }
 
-label_fourier_coef <- function(draws, harmonics) {
-  # fourier_coef's j-th column is {cos, sin} of harmonic (j + 1) %/% 2, as
-  # in compute_directional_curve()
-  pair_labs <- paste0("h", harmonics)
+fourier_terms <- function(harmonics, has_sin = rep(1L, length(harmonics))) {
+  # one row per Fourier coefficient, in fourier_coef's column order j: for
+  # each harmonic, cos, then sin unless it's a cos_only harmonic (has_sin 0;
+  # as in fourier_functions.stan)
+  labs <- paste0("h", harmonics)
+  tibble(harmonic = rep(labs, times = 1 + has_sin),
+         term = unlist(map(has_sin, \(x) c("cos", if (x) "sin")))) |>
+    mutate(j = row_number(),
+           harmonic = factor(harmonic, levels = labs),
+           term = factor(term, levels = c("cos", "sin")))
+}
+
+get_fourier_terms <- function(fit, vars) {
+  # fourier_terms() of a Fourier fit; fits from before cos_only (Nov 2026)
+  # have no fourier_has_sin, and every harmonic has a sine term
+  harmonics <- get_fourier_harmonics(fit, vars)
+  vars_s <- vars[str_detect(vars, "^fourier_has_sin")]
+  has_sin <- if (length(vars_s) > 0) as.integer(get_draws(fit, vars_s)[1, vars_s]) else rep(1L, length(harmonics))
+  fourier_terms(harmonics, has_sin)
+}
+
+label_fourier_coef <- function(draws, terms) {
+  # fourier_coef's j-th column is terms' j-th row (fourier_terms())
   draws |>
-    mutate(harmonic = factor(pair_labs[(j + 1) %/% 2], levels = pair_labs),
-           term = factor(if_else(j %% 2 == 1, "cos", "sin"), levels = c("cos", "sin"))) |>
+    left_join(terms, by = "j") |>
     select(-j)
 }
 
 extract_fourier <- function(fit, vars, cond_labels) {
 
-  # Fourier coefficients (and their prior draws): one {cos, sin} pair per
-  # harmonic and condition, used directly as an additive log-weight on
+  # Fourier coefficients (and their prior draws): {cos, sin} per harmonic
+  # (cos only for cos_only harmonics) and condition, used directly as an additive log-weight on
   # angle - offset (see compute_directional_curve() for the curve itself)
   vars_f <- vars[str_detect(vars, "^(pr_)?fourier_coef\\[")]
   # von Mises fits have no fourier_coef
   if (length(vars_f) == 0) return(NULL)
 
-  harmonics <- get_fourier_harmonics(fit, vars)
+  terms <- get_fourier_terms(fit, vars)
   offset <- get_dir_offset(fit, vars)
 
   tidy_fomo_draws(fit, vars_f, c("condition", "j")) |>
-    label_fourier_coef(harmonics) |>
+    label_fourier_coef(terms) |>
     mutate(offset = offset[pmin(condition, length(offset))],
            condition = label_condition(condition, cond_labels)) |>
     select(.draw, condition, harmonic, term, dist, value, offset)
@@ -245,7 +263,7 @@ extract_u_fourier <- function(fit, vars, cond_labels) {
   if (length(vars_f) == 0) return(NULL)
 
   tidy_fomo_draws(fit, vars_f, c("condition", "j", "person")) |>
-    label_fourier_coef(get_fourier_harmonics(fit, vars)) |>
+    label_fourier_coef(get_fourier_terms(fit, vars)) |>
     mutate(person = factor(person),
            condition = label_condition(condition, cond_labels)) |>
     select(.draw, person, condition, harmonic, term, value)

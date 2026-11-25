@@ -15,6 +15,7 @@ fit_fomo <- function(sl, iter = 500, chains = 4, filename = "tmp",
   # from R's generator, which set_up_FoMo.R seeds (FOMO_SEED), so the fit
   # still depends on the random draws made before it; set seed to fix it.
 
+  sl <- complete_stan_list(sl)
   mod <- load_stan_model(sl, model_task = "fit")
 
   # all fit models (single_level and multi_level) are reduce_sum-parallel
@@ -125,6 +126,7 @@ predict_fomo <- function(fit, sl = attr(fit, "fomo_sl"), n_draws = 500, threads_
 
   stopifnot("no data list: pass sl (fits from fit_fomo() carry their own)" = !is.null(sl))
 
+  sl <- complete_stan_list(sl)
   # selections = FALSE: only the per-trial log_lik (kfold_fomo())
   sl$save_selections <- as.integer(selections)
   sl$grainsize <- sl$grainsize %||% 1
@@ -268,6 +270,7 @@ kfold_fomo <- function(d, K = 3, sl = NULL, prep_args = list(), strata = c("pers
 # cmdstan's random inits.
 init_near_prior <- function(mod, sl, chains, seed = NULL) {
 
+  sl <- complete_stan_list(sl)
   sizes <- fomo_parameter_sizes(mod, sl)
   # seeded locally (see predict_fomo())
   if (!is.null(seed)) withr::local_seed(seed)
@@ -381,6 +384,18 @@ load_stan_model <- function(sl, model_task, quiet = FALSE) {
   cmdstan_model(file.path(root, "models", model_type, model_task, directional_model, modfile),
                 cpp_options = if (is_threaded) list(stan_threads = TRUE) else list(),
                 stanc_options = if (is_threaded) list("O1") else list())
+}
+
+# A data list made before an entry was added to the models gets that
+# entry's default, so saved fits' data lists (attr(fit, "fomo_sl")) still
+# work with predict_fomo(), sim_fomo() and refits: Fourier lists from
+# before cos_only (Nov 2026) have every harmonic's sine term
+complete_stan_list <- function(sl) {
+  if (!is.null(sl$n_harmonics) && is.null(sl$has_sin)) {
+    sl$has_sin <- as.array(rep(1L, sl$n_harmonics))
+    sl$n_coef <- 2L * sl$n_harmonics
+  }
+  sl
 }
 
 get_directional_model <- function(sl) {

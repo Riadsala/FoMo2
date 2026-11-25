@@ -72,7 +72,7 @@ no_bias <- matrix(0.5, nrow = 2, ncol = 2)
 other_params <- function(n_cond) {
   list(rho_delta_mu = rep(1, n_cond),
        rho_psi_mu = rep(-0.5, n_cond),
-       fourier_coef_mu = matrix(c(0.8, 0, 0, 0, 0.5, 0), nrow = n_cond, ncol = 6, byrow = TRUE),
+       fourier_coef_mu = matrix(c(0.8, 0, 0, 0, 0.5), nrow = n_cond, ncol = 5, byrow = TRUE),
        sd_lambda = list(b_v = 3,
                         rho_delta = rep(6, n_cond),
                         rho_psi = rep(6, n_cond),

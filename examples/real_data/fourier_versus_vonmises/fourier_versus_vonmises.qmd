@@ -23,7 +23,9 @@ models:
   few preferred directions, each a von Mises bump of fixed width.
 - **Fourier-124**: a smooth curve made of the first, second and fourth
   harmonics (a {cos, sin} pair each), added to an item's log-weight. The
-  default.
+  default. *Note*: these fits have harmonic 4's sine term too; the default
+  now leaves it out (`prep_stan_list(cos_only = 4)`), as its estimates
+  were about 0 on every dataset.
 
 Both were fitted to every real dataset with everything else the same (the
 default priors and centring, 4 chains of 1000 warmup and 1000 sampling
