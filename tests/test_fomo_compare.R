@@ -32,7 +32,7 @@ simulate <- function(spec, n_trials, sp = NULL, ...) {
 # spatial, Fourier-124 vs Fourier-12
 d_sp <- simulate(list(K = 1, nrow = 8, ncol = 8, prop_missing = 0.25, v_type = "none"), 20,
                  list(rho_delta_mu = 1.5, rho_psi_mu = -0.5,
-                      fourier_coef_mu = rbind(c(0.8, 0, 0.3, 0, 0.8, 0))),
+                      fourier_coef_mu = rbind(c(0.8, 0, 0.3, 0, 0.8))),
                  directional_model = "fourier")
 f124 <- quiet_fit(suppressMessages(prep_stan_list(d_sp$stim, found = d_sp$found, save_selections = FALSE)))
 f12  <- quiet_fit(suppressMessages(prep_stan_list(d_sp$stim, found = d_sp$found, harmonics = c(1, 2),

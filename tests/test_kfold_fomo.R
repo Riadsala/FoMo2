@@ -40,7 +40,7 @@ report("single-level spatial", {
   stim <- generate_stim(spec, n_trials = 24)
   sp <- list(rho_delta_mu = 1.5, rho_psi_mu = -0.5,
              #                    h1: a, b   h2: a, b   h4: a, b
-             fourier_coef_mu = rbind(c(0.8, 0,   0.3, 0,    0.8, 0)))
+             fourier_coef_mu = rbind(c(0.8, 0,   0.3, 0,    0.8)))
   sl <- suppressMessages(prep_stan_list(stim, sp, directional_model = "fourier"))
   d <- list(stim = stim, found = extract_pred(suppressMessages(sim_fomo(sl, iter = 1)), stim))
 
