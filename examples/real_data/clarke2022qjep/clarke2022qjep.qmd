@@ -28,12 +28,12 @@ largest dataset here.
 This page shows how to work with a fitted model: checking convergence,
 reading the posterior, accuracy and posterior predictive checks.
 The model is the default one: multi-level, Fourier-124 directions, the
-default priors, 4 chains of 1000 warmup and 1000 sampling iterations.
+default priors, 4 chains of 500 warmup and 1000 sampling iterations.
 
 *Note*: this page doesn't fit anything. It reads a saved fit
 (`clarke2022qjep_fourier124.rds`) from `fits/` in this folder.
 It isn't in the repository: to make it, run `fit_clarke2022qjep.R` in this
-folder (about 4 hours on a laptop), which saves it there. See
+folder (about 35 minutes on a laptop), which saves it there. See
 `examples/real_data/README.md`.
 
 Code: `clarke2022qjep.R`.
@@ -78,9 +78,10 @@ data.
 
 Population-level estimates (medians and 97% HPDIs) and convergence.
 R-hat and ESS are coloured green (good), orange (acceptable) or red
-(bad). At 1000 iterations this fit's largest R-hat is 1.02 and its smallest
-bulk ESS about 200: fine for a walkthrough, but a published analysis
-should use 2000.
+(bad). With 1000 sampling iterations, this fit's largest R-hat is 1.00 and
+its smallest bulk ESS about 8100: plenty for medians and intervals. The
+slowest parameters, the between-person SDs of the direction terms, aren't
+in the table; their smallest bulk ESS is about 750, which is enough too.
 
 ```{r fit-summary}
 #| results: asis

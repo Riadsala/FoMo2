@@ -4,9 +4,9 @@
 #   Rscript fit_haggouch2026acta.R
 # The fit is saved in fits/ in this folder, where the page reads it.
 # By far the slowest of the real-data examples: 304 people, 8512 trials of
-# 40 selections (340,480 selections, about 4 times C2022). Not yet timed:
-# from benchmarks, about 5 hours on a laptop, with about 1.5 GB of memory
-# per chain (6 GB for the 4). Run it where the computer won't go to sleep.
+# 40 selections (340,480 selections, about 4 times C2022). About 3.5 hours
+# on a laptop (timed Nov 2026), with about 1.5 GB of memory per chain (6
+# GB for the 4). Run it where the computer won't go to sleep.
 #
 # The minimal pipeline: data -> data list -> fit, with the default model
 # (multi-level, Fourier-124 directions, default priors and centring).
@@ -21,7 +21,7 @@ d <- import_data("haggouch2026acta")
 # per participant), Fourier-124 directions, the default priors
 sl <- prep_stan_list(d$stim, found = d$found)
 
-# fit: 4 chains of 1000 warmup and 1000 sampling iterations, saved as
+# fit: 4 chains of 500 warmup and 1000 sampling iterations, saved as
 # fits/haggouch2026acta_fourier124.rds
-fit <- fit_fomo(sl, iter = 1000, chains = 4, threads_per_chain = 2,
-                save_dir = "fits", filename = "haggouch2026acta_fourier124")
+fit <- fit_fomo(sl, iter = 1000, iter_warmup = 500, chains = 4,
+                threads_per_chain = 2, save_dir = "fits", filename = "haggouch2026acta_fourier124")

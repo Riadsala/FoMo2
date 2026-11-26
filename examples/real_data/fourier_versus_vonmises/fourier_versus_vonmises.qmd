@@ -22,14 +22,14 @@ models:
 - **von Mises** (Clarke, Hunt & Hughes, 2022a): a weight for each of a
   few preferred directions, each a von Mises bump of fixed width.
 - **Fourier-124**: a smooth curve made of the first, second and fourth
-  harmonics (a {cos, sin} pair each), added to an item's log-weight. The
-  default. *Note*: these fits have harmonic 4's sine term too; the default
-  now leaves it out (`prep_stan_list(cos_only = 4)`), as its estimates
-  were about 0 on every dataset.
+  harmonics (a {cos, sin} pair each, but only the cosine for harmonic 4:
+  `prep_stan_list(cos_only = 4)`), added to an item's log-weight. The
+  default.
 
 Both were fitted to every real dataset with everything else the same (the
-default priors and centring, 4 chains of 1000 warmup and 1000 sampling
-iterations), then compared with `fomo_compare()`.
+default priors and centring, 4 chains of 1000 sampling iterations, after
+500 warmup iterations for Fourier-124 and 1000 for von Mises), then
+compared with `fomo_compare()`.
 
 *Note*: this page doesn't fit anything. It reads each dataset's
 Fourier-124 fit (made by the dataset's own `fit_<dataset>.R`), and the von
@@ -61,7 +61,7 @@ difference holds without those trials.
 ```{r table}
 ```
 
-Fourier-124 is better on every dataset, by between 5 and 21 standard
+Fourier-124 is better on every dataset, by between 5 and 22 standard
 errors. The datasets differ a lot in size, so per trial:
 
 ```{r fig-elpd}
@@ -79,7 +79,7 @@ mainly from how much probability each gives the item that was selected.
 Stacking weights split the predictions between the models: the weights
 of the mixture of the two models' predictive distributions that best
 predicts held-out trials. They are not the probability that each model
-is right. Von Mises keeps 9-20% of the weight on every dataset, despite
+is right. Von Mises keeps 9-17% of the weight on every dataset, despite
 being thousands of elpd behind on some: a mixture gains from von Mises
 if it predicts some trials better than Fourier-124, even when it is worse
 overall. Which trials those are hasn't been checked yet, so don't read

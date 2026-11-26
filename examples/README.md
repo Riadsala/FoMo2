@@ -43,11 +43,12 @@ predictive check. All use the default directional model, Fourier-124.
 | `fourier_versus_vonmises/` | the four datasets above | Fourier vs von Mises directional models |
 | `haggouch2026acta/` | Haggouch et al. (2026): 304 people, two foraging tasks | none yet |
 
-These pages read saved fits rather than fitting live: the fits take hours
-and are not in the repository. In each folder, run `fit_<name>.R` first:
-it makes every fit the page needs and saves them in `fits/` in that
-folder, where the page reads them (see `real_data/README.md`). Without
-the fits a page won't run, but its online version still shows the results.
+These pages read saved fits rather than fitting live: the fits take from
+20 minutes to a few hours and are not in the repository. In each folder,
+run `fit_<name>.R` first: it makes every fit the page needs and saves
+them in `fits/` in that folder, where the page reads them (see
+`real_data/README.md`). Without the fits a page won't run, but its online
+version still shows the results.
 
 ## Running the examples
 

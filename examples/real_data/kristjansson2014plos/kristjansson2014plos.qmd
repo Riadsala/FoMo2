@@ -27,12 +27,12 @@ people tend to collect one target type before switching to the other
 This page shows how to work with a fitted model: checking convergence,
 reading the posterior, accuracy and posterior predictive checks. It ends with a model comparison: the full transition matrix against a symmetric one.
 The model is the default one: multi-level, Fourier-124 directions, the
-default priors, 4 chains of 1000 warmup and 1000 sampling iterations.
+default priors, 4 chains of 500 warmup and 1000 sampling iterations.
 
 *Note*: this page doesn't fit anything. It reads saved fits
 (`kristjansson2014_fourier124.rds` and `kristjansson2014_fourier124_symmetric.rds`) from `fits/` in this folder.
 They aren't in the repository: to make them, run `fit_kristjansson2014plos.R` in this
-folder (about 2.5 hours on a laptop), which saves them there. See
+folder (about 20 minutes on a laptop), which saves them there. See
 `examples/real_data/README.md`.
 
 *Note*: the importer rotates this dataset by 180 degrees, so that first
@@ -81,8 +81,10 @@ data.
 
 Population-level estimates (medians and 97% HPDIs) and convergence.
 R-hat and ESS are coloured green (good), orange (acceptable) or red
-(bad). At 1000 iterations this fit's smallest bulk ESS is about 380:
-fine for medians and intervals, but a published analysis might use 2000.
+(bad). With 1000 sampling iterations, this fit's largest R-hat is 1.00 and
+its smallest bulk ESS about 6400: plenty for medians and intervals. The
+slowest parameters, the between-person SDs of the direction terms, aren't
+in the table; their smallest bulk ESS is about 950, which is enough too.
 
 ```{r fit-summary}
 #| results: asis
@@ -209,7 +211,7 @@ below shows where it comes from. In **feature** search the symmetric model
 does as well, slightly better even (8 ± 5 elpd, within 2 SE): people stay
 with the type just selected about two-thirds of the time (stay log-odds
 0.72, a probability of about 0.67), and the two types are treated alike.
-All of the full model's advantage is in **conjunction** search (250 ± 43):
+All of the full model's advantage is in **conjunction** search (249 ± 42):
 there people almost always stay with the type just selected, but more so
 for one type than the other: in the full model the stay log-odds are
 about 4.9 for type 1 and 2.9 for type 2 (probabilities about 0.99 and

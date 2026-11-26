@@ -7,8 +7,12 @@
 
 fit_fomo <- function(sl, iter = 500, chains = 4, filename = "tmp",
                      save_dir = NULL, grainsize = 1, threads_per_chain = 2,
-                     pathfinder_init = FALSE, seed = NULL, init = "prior", ...) {
+                     pathfinder_init = FALSE, seed = NULL, init = "prior",
+                     iter_warmup = iter, ...) {
 
+  # iter: sampling iterations per chain, and warmup too unless iter_warmup
+  # is given (e.g. iter = 1000, iter_warmup = 500: warmup is most of a fit's
+  # time, and ESS comes from the sampling draws).
   # the fit is saved as <save_dir>/<filename>.rds; save_dir defaults to
   # scratch/ at the repo root (gitignored), so fits don't land in whichever
   # folder the calling script runs from. seed = NULL: cmdstanr draws one
@@ -52,7 +56,7 @@ fit_fomo <- function(sl, iter = 500, chains = 4, filename = "tmp",
   # warn about those on every fit
   m <- withr::with_options(list(cmdstanr_warn_inits = if (own_init) FALSE else getOption("cmdstanr_warn_inits", TRUE)),
     mod$sample(data = sl,
-               iter_warmup = iter,
+               iter_warmup = iter_warmup,
                iter_sampling = iter,
                chains = chains,
                threads_per_chain = threads_per_chain,

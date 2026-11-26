@@ -17,6 +17,12 @@
 #          posterior predictive simulation from that fit (sim_fomo(sl, fit))
 #          and prep_stan_list()'s centred_params errors and default flags.
 # Stage 4: multi-level sim_params defaults and prior overrides
+# Stage 5: Fourier with every sine term (cos_only = NULL; the default
+#          leaves out harmonic 4's), each level and item type
+# Stage 6: cat_sym.stan (prep_stan_list(symmetric_v = TRUE), multi-level
+#          Fourier cat fits only): data simulated from cat.stan, fitted
+#          with the default centring and with every effect centred; the
+#          save_selections / predict_fomo() checks and extract_post()
 # Stage 2 also checks save_selections: with it off, the same draws
 # give the same per-trial log_lik and no P, W or loglik, and
 # predict_fomo() gets them back
@@ -71,9 +77,9 @@ cat("\n=== Stage 2: simulate -> fit ===\n")
 check_save_selections <- function(m_fit, sl_fit) {
   sl_fit$grainsize <- 1
   mod <- load_stan_model(sl_fit, model_task = "fit")
-  sizes <- m_fit$metadata()$stan_variable_sizes
-  pars <- keep(names(mod$variables()$parameters), \(p) prod(sizes[[p]] %||% 0) > 0)
-  dr <- posterior::as_draws_matrix(m_fit$draws(variables = pars))
+  # the fit's parameter draws as predict_fomo() passes them (sum-to-zero
+  # vectors re-centred after CmdStan's rounding)
+  dr <- parameter_draws(m_fit, mod, sl_fit)
   gq <- function(flag) {
     sl <- sl_fit; sl$save_selections <- flag
     mod$generate_quantities(fitted_params = dr, data = sl, threads_per_chain = 1, seed = 1)
@@ -137,7 +143,9 @@ run_case <- function(lv, dm, ty, centred_params = "default") {
               is.null(post$first_v) == (ty != "cat" || lv == "multi_level"))
   if (dm == "fourier") {
     stopifnot("Fourier harmonics not labelled from the fit" =
-                all(str_detect(levels(post$fourier$harmonic), "^h\\d+$")))
+                all(str_detect(levels(post$fourier$harmonic), "^h\\d+$")),
+              "default Fourier fit should leave out harmonic 4's sine (cos_only)" =
+                !any(post$fourier$harmonic == "h4" & post$fourier$term == "sin"))
   }
   if (lv == "multi_level") {
     stopifnot("per-person Fourier coefficients missing" =
@@ -232,11 +240,74 @@ for (dm in dir_models) {
 }
 
 ################################################################
+# Stage 5: Fourier with every sine term (prep_stan_list(cos_only = NULL);
+# stages 2-4 use the default, harmonic 4 cosine only): simulate -> fit,
+# the coefficients' labels, and predict_fomo()
+################################################################
+
+cat("\n=== Stage 5: Fourier, every sine term (cos_only = NULL) ===\n")
+
+for (lv in levels_) for (ty in types) {
+  label <- paste(lv, "fourier", ty, "all sines", sep = "/")
+  ok <- tryCatch({
+    suppressMessages(capture.output({
+      n_people <- if (lv == "multi_level") 3 else 1
+      stim <- generate_stim(specs[[ty]], n_trials = 2, n_people = n_people)
+      sl <- prep_stan_list(stim, list(fourier_coef_mu = c(0.5, 0, 0, 0.3, 0.4, 0)), cos_only = NULL)
+      df <- extract_pred(sim_fomo(sl, iter = 1, chains = 1), stim)
+      sl_fit <- prep_stan_list(stim, found = df, cos_only = NULL)
+      m_fit <- fit_fomo(sl_fit, iter = 5, chains = 1, save_dir = tempdir(),
+                        grainsize = 1, threads_per_chain = 1)
+      post <- extract_post(m_fit, df)
+      stopifnot("all sines: wrong Fourier coefficients" =
+                  identical(paste(post$fourier$harmonic, post$fourier$term) |> unique(),
+                            c("h1 cos", "h1 sin", "h2 cos", "h2 sin", "h4 cos", "h4 sin")),
+                "all sines: log_lik not finite" = all(is.finite(m_fit$draws("log_lik"))))
+      compute_directional_curve(post)
+      g <- predict_fomo(m_fit, n_draws = 2, threads_per_chain = 1, seed = 2)
+    }))
+    TRUE
+  }, error = function(e) { cat("  ", conditionMessage(e), "\n"); FALSE })
+  cat(sprintf("%-45s %s\n", label, if (ok) "OK" else "FAILED"))
+  if (!ok) failures <- c(failures, paste("all sines", label))
+}
+
+################################################################
+# Stage 6: cat_sym.stan, the symmetric transition matrix (multi-level
+# Fourier cat fits only; no simulate model, so the data come from cat.stan)
+################################################################
+
+cat("\n=== Stage 6: multi-level Fourier cat_sym (symmetric_v = TRUE) ===\n")
+
+for (centred in c("default", "all")) {
+  label <- paste("multi_level/fourier/cat_sym", if (centred == "all") "centred" else "", sep = "/") |>
+    str_remove("/$")
+  ok <- tryCatch({
+    suppressMessages(capture.output({
+      stim <- generate_stim(specs$cat, n_trials = 2, n_people = 3)
+      df <- extract_pred(sim_fomo(prep_stan_list(stim), iter = 1, chains = 1), stim)
+      sl_fit <- prep_stan_list(stim, found = df, symmetric_v = TRUE, centred_params = centred)
+      stopifnot("symmetric_v didn't set the flag" = sl_fit$symmetric_v == 1)
+      m_fit <- fit_fomo(sl_fit, iter = 5, chains = 1, save_dir = tempdir(),
+                        grainsize = 1, threads_per_chain = 1)
+      stopifnot("cat_sym: no stay log-odds in the fit" = "b_stay" %in% m_fit$metadata()$stan_variables,
+                "cat_sym: log_lik missing or not finite" = all(is.finite(m_fit$draws("log_lik"))))
+      check_save_selections(m_fit, sl_fit)
+      post <- extract_post(m_fit, df)
+      stopifnot("cat_sym: no Fourier coefficients" = !is.null(post$fourier))
+    }))
+    TRUE
+  }, error = function(e) { cat("  ", conditionMessage(e), "\n"); FALSE })
+  cat(sprintf("%-45s %s\n", label, if (ok) "OK" else "FAILED"))
+  if (!ok) failures <- c(failures, paste("cat_sym", label))
+}
+
+################################################################
 # Summary
 ################################################################
 
 if (length(failures) == 0) {
-  cat("\nALL SMOKE TESTS PASSED (16 compiles, 8 simulate -> fit runs, 4 centred runs, 2 sim_params runs)\n")
+  cat("\nALL SMOKE TESTS PASSED (16 compiles, 8 simulate -> fit runs, 4 centred runs, 2 sim_params runs, 4 all-sines runs, 2 cat_sym runs)\n")
 } else {
   cat("\n", length(failures), "FAILURE(S):\n", paste(" -", failures, collapse = "\n"), "\n")
   quit(status = 1)

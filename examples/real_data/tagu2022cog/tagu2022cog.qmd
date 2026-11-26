@@ -40,12 +40,12 @@ their three (two class weights, one stick/switch rate).
 This page shows how to work with a fitted model: checking convergence,
 reading the posterior, accuracy and posterior predictive checks. It ends with a model comparison, three item classes against two.
 The model is the default one: multi-level, Fourier-124 directions, the
-default priors, 4 chains of 1000 warmup and 1000 sampling iterations.
+default priors, 4 chains of 500 warmup and 1000 sampling iterations.
 
 *Note*: this page doesn't fit anything. It reads saved fits
 (`tagu2022cog_fourier124.rds` and `tagu2022cog2items_fourier124.rds`) from `fits/` in this folder.
 They aren't in the repository: to make them, run `fit_tagu2022cog.R` in this
-folder (about 2.5 hours on a laptop), which saves them there. See
+folder (about 25 minutes on a laptop), which saves them there. See
 `examples/real_data/README.md`.
 
 Code: `tagu2022cog.R`.
@@ -90,8 +90,10 @@ data.
 
 Population-level estimates (medians and 97% HPDIs) and convergence.
 R-hat and ESS are coloured green (good), orange (acceptable) or red
-(bad). At 1000 iterations this fit's smallest bulk ESS is about 285:
-fine for medians and intervals, but a published analysis might use 2000.
+(bad). With 1000 sampling iterations, this fit's largest R-hat is 1.00 and
+its smallest bulk ESS about 4000: plenty for medians and intervals. The
+slowest parameters, the between-person SDs of the direction terms, aren't
+in the table; their smallest bulk ESS is about 900, which is enough too.
 
 ```{r fit-summary}
 #| results: asis
@@ -219,7 +221,7 @@ condition, 1.5 in the control), and after colour 3 more likely colour 3
 than colour 2 (1.4 in both). So people stick with the exact colour, not
 just with "not the high-value colour", and they do so in the control
 condition too, where no colour is worth more: this is priming by colour,
-not value. About 9% of the 3-class model's trials have unreliable loo
+not value. About 8% of the 3-class model's trials have unreliable loo
 estimates (high Pareto k), more than in the other datasets, but the
 difference survives without those trials (`robust`). Three classes also
 predict the next target better (accuracy 0.62 against 0.59).

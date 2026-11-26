@@ -27,12 +27,12 @@ switch more freely in feature search.
 This page shows how to work with a fitted model: checking convergence,
 reading the posterior, accuracy and posterior predictive checks. It ends with a model comparison: scarcity levels as separate conditions.
 The model is the default one: multi-level, Fourier-124 directions, the
-default priors, 4 chains of 1000 warmup and 1000 sampling iterations.
+default priors, 4 chains of 500 warmup and 1000 sampling iterations.
 
 *Note*: this page doesn't fit anything. It reads saved fits
 (`hughes2024rsos_fourier124.rds` and `hughes2024rsos_scarcity_fourier124.rds`) from `fits/` in this folder.
 They aren't in the repository: to make them, run `fit_hughes2024rsos.R` in this
-folder (about 3.5 hours on a laptop), which saves them there. See
+folder (about 25 minutes on a laptop), which saves them there. See
 `examples/real_data/README.md`.
 
 Code: `hughes2024rsos.R`.
@@ -77,10 +77,10 @@ data.
 
 Population-level estimates (medians and 97% HPDIs) and convergence.
 R-hat and ESS are coloured green (good), orange (acceptable) or red
-(bad). This fit mixed less well than most: its largest R-hat is about
-1.03 and its smallest bulk ESS about 185 at 1000 iterations. That's
-usable for medians and intervals, but a published analysis should rerun
-it with 2000 iterations.
+(bad). With 1000 sampling iterations, this fit's largest R-hat is 1.00 and
+its smallest bulk ESS about 6200: plenty for medians and intervals. The
+slowest parameters, the between-person SDs of the direction terms, aren't
+in the table; their smallest bulk ESS is about 700, which is enough too.
 
 ```{r fit-summary}
 #| results: asis
@@ -194,7 +194,7 @@ trials and selections are the same, so loo compares the two directly.
 ```{r compare}
 ```
 
-The $K = 6$ model is far ahead on loo (525 $\pm$ 98 elpd), and every cell
+The $K = 6$ model is far ahead on loo (534 $\pm$ 98 elpd), and every cell
 contributes, including the two *equal* cells, where nothing about
 scarcity changes:
 
@@ -214,7 +214,7 @@ answers a different question:
 - **Does scarcity change behaviour on average?** The posterior of the
   population differences between the scarcity levels.
 
-*Note*: 5.7% of trials have a high Pareto $k$ in the $K = 6$ fit (0.6% in
+*Note*: 5.5% of trials have a high Pareto $k$ in the $K = 6$ fit (0.6% in
 the $K = 2$ fit), so the size of the loo difference is approximate; the
 winner is robust to leaving those trials out.
 
@@ -238,7 +238,7 @@ scarce, compared with the equal condition.
 
 Every difference is close to 0, with 0 inside its 97% HPDI. In
 feature search, $b_a$ moves slightly in the predicted direction (A
-scarce minus B scarce: 0.40, 97% HPDI $-0.16$ to 0.92), but not
+scarce minus B scarce: 0.41, 97% HPDI $-0.13$ to 0.93), but not
 reliably. Stickiness ($b_s$) doesn't change with scarcity in either task.
 This matches the paper: no evidence of a scarcity bias, even though each
 person's behaviour varies from one scarcity level to another.
