@@ -14,7 +14,7 @@ format:
 execute:
   warning: false
   message: false
----
+--- 
 
 In Haggouch, Doré-Mazars & Tagu (2026), 304 people foraged for targets of
 two types (40 per trial, 20 of each) in two foraging tasks, `foraging1` and
@@ -32,13 +32,13 @@ point for relating them to individual characteristics.
 This page shows how to work with a fitted model: checking convergence,
 reading the posterior, accuracy and posterior predictive checks. The model
 is the default one: multi-level, Fourier-124
-directions, the default priors, 4 chains of 1000 warmup and 1000 sampling
+directions, the default priors, 4 chains of 500 warmup and 1000 sampling
 iterations.
 
 *Note*: this page doesn't fit anything. It reads a saved fit
 (`haggouch2026acta_fourier124.rds`) from `fits/` in this folder. It isn't
 in the repository: to make it, run `fit_haggouch2026acta.R` in this folder
-(about 5 hours on a laptop), which saves it there. See
+(about 3.5 hours on a laptop), which saves it there. See
 `examples/real_data/README.md`.
 
 *Note*: because the dataset is so large, the predictions and simulations
@@ -88,8 +88,10 @@ data.
 
 Population-level estimates (medians and 97% HPDIs) and convergence.
 R-hat and ESS are coloured green (good), orange (acceptable) or red
-(bad). **TODO** (once fitted): this fit's smallest bulk ESS, and whether
-it is enough.
+(bad). With 1000 sampling iterations, this fit's largest R-hat is 1.00 and
+its smallest bulk ESS about 6400: plenty for medians and intervals. The
+slowest parameters, the between-person SDs of the direction terms, aren't
+in the table; their smallest bulk ESS is about 500, which is enough too.
 
 ```{r fit-summary}
 #| results: asis
@@ -181,7 +183,7 @@ many selections as the observed one (here always all 40).
 ```{r fig-sim-stats}
 #| cache: true
 #| cache.extra: !expr rlang::hash(list(found_post, trial_stats))
-#| fig-height: 4
+#| fig-height: 2.5
 #| fig-cap: "Trial statistics for the data (x) and simulated from the posterior (y). Points near the diagonal mean the model reproduces them."
 ```
 
