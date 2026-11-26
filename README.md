@@ -69,13 +69,16 @@ classes.
 | `cat_sym` | as `cat`, with a symmetric transition matrix: one stay probability per condition (for model comparison; Fourier, fit only) | – | ✓ | `prep_stan_list(symmetric_v = TRUE)` |
 
 - **Directional term:** `fourier` (the default, Fourier-124: harmonics 1,
-  2 and 4) or `von_mises` (the papers' model), chosen with
-  `prep_stan_list(directional_model = )`. Fourier-124 fits better on every
-  real dataset, and faster.
+  2 and 4, with only the cosine for harmonic 4,
+  `prep_stan_list(cos_only = )`) or `von_mises` (the papers' model),
+  chosen with `prep_stan_list(directional_model = )`. Fourier-124 fits
+  better on every real dataset, and faster.
 - **Single- or multi-level:** the multi-level version (per-person random
   effects) is used automatically when the data contains more than one
-  person. By default it samples the distance and class effects centred
-  and the rest non-centred (`prep_stan_list(centred_params = )`).
+  person. By default it samples the distance and class effects centred,
+  and the turn and direction effects non-centred; in the Fourier models,
+  in sum-to-zero form, which mixes far better
+  (`prep_stan_list(centred_params = )`).
 - **Fit and simulate:** each model except `cat_sym` has a fit version and
   a simulate version (for simulating data and posterior predictive
   checks).
@@ -95,7 +98,7 @@ source("../../functions/set_up_FoMo.R")
 
 d    <- import_data("kristjansson2014plos")      # or the shorthand "K2014"
 sl   <- prep_stan_list(d$stim, found = d$found)   # Fourier-124, multi-level
-fit  <- fit_fomo(sl, iter = 1000)
+fit  <- fit_fomo(sl, iter = 1000, iter_warmup = 500)  # as the real-data examples
 post <- extract_post(fit, d$found, d$stim)        # tidy posterior tables
 plot_post(post)
 
