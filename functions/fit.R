@@ -477,7 +477,9 @@ pathfinder_inits <- function(pf, mod, chains, seed = NULL) {
   sizes <- pf$metadata()$stan_variable_sizes
   # parameters of size 0 have no draws and need no initial value
   params <- keep(names(pars), \(p) prod(sizes[[p]] %||% 0) > 0)
-  draws <- posterior::as_draws_matrix(pf$draws(variables = params))
+  # sum-to-zero vectors re-centred: CmdStan's 6 significant figures leave
+  # them summing to about 1e-8, which Stan refuses as an initial value
+  draws <- recentre_sum_to_zero(posterior::as_draws_matrix(pf$draws(variables = params)))
   # seeded locally (see predict_fomo())
   if (!is.null(seed)) withr::local_seed(seed)
   rows <- sample(nrow(draws), chains)

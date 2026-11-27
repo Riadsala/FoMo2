@@ -16,7 +16,8 @@
 #          effect centred (prep_stan_list(centred_params = "all")), plus a
 #          posterior predictive simulation from that fit (sim_fomo(sl, fit))
 #          and prep_stan_list()'s centred_params errors and default flags.
-# Stage 4: multi-level sim_params defaults and prior overrides
+# Stage 4: multi-level sim_params defaults and prior overrides (the
+#          Fourier fit starting from pathfinder, pathfinder_init = TRUE)
 # Stage 5: Fourier with every sine term (cos_only = NULL; the default
 #          leaves out harmonic 4's), each level and item type
 # Stage 6: cat_sym.stan (prep_stan_list(symmetric_v = TRUE), multi-level
@@ -230,8 +231,10 @@ for (dm in dir_models) {
       stopifnot(all(sl_fit$rho_delta_sd == 0.5))
       # assigned, so capture.output() doesn't print the fit (cmdstanr's
       # print of a 5-iteration fit warns "NAs introduced by coercion")
-      m_fit <- fit_fomo(sl_fit, iter = 5, chains = 1, save_dir = tempdir(),
-               grainsize = 1, threads_per_chain = 1)
+      # Fourier: from pathfinder's draws (fit_fomo(pathfinder_init = TRUE)),
+      # whose sum-to-zero vectors must be re-centred to be valid starts
+      m_fit <- fit_fomo(sl_fit, iter = 5, chains = 2, save_dir = tempdir(),
+               grainsize = 1, threads_per_chain = 1, pathfinder_init = dm == "fourier")
     }))
     TRUE
   }, error = function(e) { cat("  ", conditionMessage(e), "\n"); FALSE })
